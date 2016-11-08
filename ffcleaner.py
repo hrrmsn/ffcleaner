@@ -119,12 +119,12 @@ def extension_to_filetype():
   return ext_to_filetype
 
 
-def filetype(filename):
-  ext = os.path.splitext(filename)[1].lower()
+def filetype(filepath):
+  ext = os.path.splitext(filepath)[1].lower()
   ext_to_filetype = extension_to_filetype()
   if ext in ext_to_filetype:
     return ext_to_filetype[ext]
-  elif os.stat(filename).st_size == 0:
+  elif os.stat(filepath).st_size == 0:
     return 'empty'
   return 'unknown'
 
@@ -137,23 +137,39 @@ def listdir(path, todir):
   global unknown_files_number
 
   for subpath in os.listdir(path):
-    absolute_path = os.path.join(path, subpath)
-    if os.path.isdir(absolute_path):
-      listdir(absolute_path, todir)
+    fullpath = os.path.join(path, subpath)
+    if os.path.isdir(fullpath):
+      listdir(fullpath, todir)
     else:
       total_files_number += 1
-      if filetype(absolute_path) == 'unknown':
+      if filetype(fullpath) == 'unknown':
         unknown_files_number += 1
-      print absolute_path + ' -> ' + filetype(absolute_path)
-      cleanfile(absolute_path, todir)
+      print fullpath + ' -> ' + filetype(fullpath)
+      cleanfile(fullpath, todir)
 
 
+# under test function!!!
 def cleanfile(filepath, todir):
   destination = os.path.join(todir, filetype(filepath))
+  ext = os.path.splitext(filepath)[1].lower()
+  ext_without_dot = ext[1:]
+  if ext == '':
+    ext_without_dot = '[no_extension]'
+  destination = os.path.join(destination, ext_without_dot)
+
   if not os.path.exists(destination):
     os.makedirs(destination)
-  # shutil.copy2(filepath, destination)
-  shutil.move(filepath, destination)
+
+  basename = os.path.basename(filepath)
+  fulldest = os.path.join(destination, basename)
+  number = 0
+  while os.path.exists(fulldest):
+    filename = os.path.splitext(basename)[0]
+    filename += '(' + str(number) + ')'
+    fulldest = os.path.join(destination, filename + ext)
+    number += 1
+
+  shutil.copy2(filepath, fulldest)
 
 
 def main():
