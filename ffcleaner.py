@@ -153,10 +153,12 @@ def cleanfile(filepath, todir, ftype):
 
 total_files_number = 0
 unknown_files_number = 0
+progress = 0
 
 def listdir(path, todir, ext_to_filetype, cleandir_files_number):
   global total_files_number
   global unknown_files_number
+  global progress
 
   for subpath in os.listdir(path):
     fullpath = os.path.join(path, subpath)
@@ -164,11 +166,14 @@ def listdir(path, todir, ext_to_filetype, cleandir_files_number):
       listdir(fullpath, todir, ext_to_filetype, cleandir_files_number)
     else:
       total_files_number += 1
-      print 'processed files: ' + str(total_files_number) + '/' + str(cleandir_files_number)
+      new_progress = int('{:.0f}'.format(total_files_number * 100.0 / cleandir_files_number))
+      if progress != new_progress:
+        progress = new_progress
+        print str(progress) + '% complete'
+
       ftype = filetype(fullpath, ext_to_filetype)
       if ftype == 'unknown':
         unknown_files_number += 1
-      # print fullpath + ' -> ' + ftype
       cleanfile(fullpath, todir, ftype)
 
 
@@ -202,8 +207,9 @@ def main():
   
   cleandir = args[0]
 
-  print 'todir=' + todir
-  print 'cleandir=' + cleandir + '\n'
+  print 'started cleaning'
+  print 'dir for clean: ' + cleandir
+  print 'dir for output: ' + todir
 
   cleandir_files_number = sum([len(dirfiles) for dirpath, dirnames, dirfiles in os.walk(cleandir)])
 
@@ -212,9 +218,9 @@ def main():
 
   listdir(cleandir, todir, ext_to_filetype, cleandir_files_number)
 
-  print '\n'
-  print 'total files: ' + str(total_files_number)
+  print 'processed files: ' + str(total_files_number)
   print 'unknown files: ' + '{:.2f}%'.format(unknown_files_number / float(total_files_number) * 100)  
+  print 'done'
 
 
 if __name__ == '__main__':
