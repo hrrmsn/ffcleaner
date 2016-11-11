@@ -32,8 +32,8 @@ Tool should be create a follow structure:
 ->[unknown] (should be sorted by extension and moved to the different dirs)
 '''
 
-import sys
 import os
+import sys
 import shutil
 
 IMAGES_EXTS = ['image', '.jpg', '.jpeg', '.jpe', '.jp2', '.bmp', '.bmp2', '.bmp3', '.gif', '.png', '.png8', '.png24', 
@@ -109,19 +109,17 @@ def extensions_types():
   return exts_types
 
 
-def extension_to_filetype():
-  exts_types = extensions_types()
+def extension_to_filetype(exts_types):
   ext_to_filetype = {}
   for exts_type in exts_types:
-    filetype = exts_type[0]
-    for ext in exts_type[1:]:
-      ext_to_filetype[ext] = filetype
+    ftype = exts_type.pop(0)
+    for ext in exts_type:
+      ext_to_filetype[ext] = ftype
   return ext_to_filetype
 
 
-def filetype(filepath):
+def filetype(filepath, ext_to_filetype):
   ext = os.path.splitext(filepath)[1].lower()
-  ext_to_filetype = extension_to_filetype()
   if ext in ext_to_filetype:
     return ext_to_filetype[ext]
   elif os.stat(filepath).st_size == 0:
@@ -129,33 +127,14 @@ def filetype(filepath):
   return 'unknown'
 
 
-total_files_number = 0
-unknown_files_number = 0
-
-def listdir(path, todir):
-  global total_files_number
-  global unknown_files_number
-
-  for subpath in os.listdir(path):
-    fullpath = os.path.join(path, subpath)
-    if os.path.isdir(fullpath):
-      listdir(fullpath, todir)
-    else:
-      total_files_number += 1
-      if filetype(fullpath) == 'unknown':
-        unknown_files_number += 1
-      print fullpath + ' -> ' + filetype(fullpath)
-      cleanfile(fullpath, todir)
-
-
 # under test function!!!
-def cleanfile(filepath, todir):
-  destination = os.path.join(todir, filetype(filepath))
+def cleanfile(filepath, todir, ftype):
+  destination = os.path.join(todir, ftype)
   ext = os.path.splitext(filepath)[1].lower()
-  ext_without_dot = ext[1:]
+  ext = ext.strip('.')
   if ext == '':
-    ext_without_dot = '[no_extension]'
-  destination = os.path.join(destination, ext_without_dot)
+    ext = '[no_extension]'
+  destination = os.path.join(destination, ext)
 
   if not os.path.exists(destination):
     os.makedirs(destination)
@@ -166,10 +145,31 @@ def cleanfile(filepath, todir):
   while os.path.exists(fulldest):
     filename = os.path.splitext(basename)[0]
     filename += '(' + str(number) + ')'
-    fulldest = os.path.join(destination, filename + ext)
+    fulldest = os.path.join(destination, filename + '.' + ext)
     number += 1
 
   shutil.copy2(filepath, fulldest)
+
+
+total_files_number = 0
+unknown_files_number = 0
+
+def listdir(path, todir, ext_to_filetype, cleandir_files_number):
+  global total_files_number
+  global unknown_files_number
+
+  for subpath in os.listdir(path):
+    fullpath = os.path.join(path, subpath)
+    if os.path.isdir(fullpath):
+      listdir(fullpath, todir, ext_to_filetype, cleandir_files_number)
+    else:
+      total_files_number += 1
+      print 'processed files: ' + str(total_files_number) + '/' + str(cleandir_files_number)
+      ftype = filetype(fullpath, ext_to_filetype)
+      if ftype == 'unknown':
+        unknown_files_number += 1
+      # print fullpath + ' -> ' + ftype
+      cleanfile(fullpath, todir, ftype)
 
 
 def main():
@@ -205,7 +205,12 @@ def main():
   print 'todir=' + todir
   print 'cleandir=' + cleandir + '\n'
 
-  listdir(cleandir, todir)
+  cleandir_files_number = sum([len(dirfiles) for dirpath, dirnames, dirfiles in os.walk(cleandir)])
+
+  exts_types = extensions_types()
+  ext_to_filetype = extension_to_filetype(exts_types)
+
+  listdir(cleandir, todir, ext_to_filetype, cleandir_files_number)
 
   print '\n'
   print 'total files: ' + str(total_files_number)
