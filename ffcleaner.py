@@ -23,17 +23,12 @@ Tool should be create a follow structure:
 ->[calendar]
 ->[installer]
 ->[torrent]
-->[empty]
-  ->[images]
-  ->[code]
-  ->[document]
-  ...
-  ->[torrent]
 ->[unknown] (should be sorted by extension and moved to the different dirs)
 '''
 
 import os
 import sys
+import time
 import shutil
 
 IMAGES_EXTS = ['image', '.jpg', '.jpeg', '.jpe', '.jp2', '.bmp', '.bmp2', '.bmp3', '.gif', '.png', '.png8', '.png24', 
@@ -81,6 +76,11 @@ CALENDAR_EXTS = ['calendar', '.ics']
 INSTALLER_EXTS = ['installer', '.msi']
 TORRENT_EXTS = ['torrent', '.torrent']
 
+SECONDS_IN_DAY = 24 * 60 * 60
+SECONDS_IN_HOUR = 60 * 60
+SECONDS_IN_MINUTE = 60
+TIME_UNITS = [('d', SECONDS_IN_DAY), ('h', SECONDS_IN_HOUR), ('min', SECONDS_IN_MINUTE), ('sec', 1)]
+
 
 def extensions_types():
   exts_types = []
@@ -122,13 +122,24 @@ def filetype(filepath, ext_to_filetype):
   ext = os.path.splitext(filepath)[1].lower()
   if ext in ext_to_filetype:
     return ext_to_filetype[ext]
-  elif os.stat(filepath).st_size == 0:
-    return 'empty'
   return 'unknown'
 
 
-# under test function!!!
-def cleanfile(filepath, todir, ftype):
+def full_destination(not_fulldest, filepath, filenames_storage):
+  basename = os.path.basename(filepath)
+  filename = basename
+  if not basename in filenames_storage:
+    filenames_storage[basename] = 0
+  else:
+    filenames_storage[basename] += 1
+    filename, ext = os.path.splitext(basename)
+    filename += '(' + str(filenames_storage[basename]) + ')' + ext
+
+  fulldest = os.path.join(not_fulldest, filename)
+  return fulldest
+
+
+def cleanfile(filepath, todir, ftype, filenames_storage):
   destination = os.path.join(todir, ftype)
   ext = os.path.splitext(filepath)[1].lower()
   ext = ext.strip('.')
@@ -139,23 +150,15 @@ def cleanfile(filepath, todir, ftype):
   if not os.path.exists(destination):
     os.makedirs(destination)
 
-  basename = os.path.basename(filepath)
-  fulldest = os.path.join(destination, basename)
-  number = 0
-  while os.path.exists(fulldest):
-    filename = os.path.splitext(basename)[0]
-    filename += '(' + str(number) + ')'
-    fulldest = os.path.join(destination, filename + '.' + ext)
-    number += 1
-
-  shutil.copy2(filepath, fulldest)
+  fulldest = full_destination(destination, filepath, filenames_storage)
+  shutil.copy2(filepath, fulldest)  
 
 
 total_files_number = 0
 unknown_files_number = 0
 progress = 0
 
-def listdir(path, todir, ext_to_filetype, cleandir_files_number):
+def listdir(path, todir, cleandir_files_number, ext_to_filetype, filenames_storage):
   global total_files_number
   global unknown_files_number
   global progress
@@ -163,7 +166,7 @@ def listdir(path, todir, ext_to_filetype, cleandir_files_number):
   for subpath in os.listdir(path):
     fullpath = os.path.join(path, subpath)
     if os.path.isdir(fullpath):
-      listdir(fullpath, todir, ext_to_filetype, cleandir_files_number)
+      listdir(fullpath, todir, cleandir_files_number, ext_to_filetype, filenames_storage)
     else:
       total_files_number += 1
       new_progress = int('{:.0f}'.format(total_files_number * 100.0 / cleandir_files_number))
@@ -174,11 +177,23 @@ def listdir(path, todir, ext_to_filetype, cleandir_files_number):
       ftype = filetype(fullpath, ext_to_filetype)
       if ftype == 'unknown':
         unknown_files_number += 1
-      cleanfile(fullpath, todir, ftype)
+      cleanfile(fullpath, todir, ftype, filenames_storage)
 
 
-def main():
-  args = sys.argv[1:]
+def split_seconds(seconds):
+  seconds = int(seconds)
+  if seconds == 0:
+    return '0 sec'
+  splitted_seconds = []
+  for time_unit in TIME_UNITS:
+    if seconds >= time_unit[1]:
+      unit_value = seconds / time_unit[1]
+      seconds %= time_unit[1]
+      splitted_seconds.append(str(unit_value) + ' ' + time_unit[0])
+  return ' '.join(splitted_seconds)
+
+
+def check_arguments(args):
   if not args:
     print 'usage: [--todir dir] dir'
     sys.exit(1)
@@ -198,7 +213,6 @@ def main():
     print 'error: must specify dir to clean'
     sys.exit(1)
   elif len(args) > 1:
-    print 'args: ' + str(args)
     if '--todir' in ''.join(args):
       print 'error: todir option must be the first'
       sys.exit(1)
@@ -206,21 +220,53 @@ def main():
     sys.exit(1)
   
   cleandir = args[0]
+  return todir, cleandir
 
-  print 'started cleaning'
-  print 'dir for clean: ' + cleandir
-  print 'dir for output: ' + todir
 
-  cleandir_files_number = sum([len(dirfiles) for dirpath, dirnames, dirfiles in os.walk(cleandir)])
+def check_input(todir, cleandir):
+  files_number_in_subfolders = [len(filenames) for dirpath, dirnames, filenames in os.walk(cleandir)]
+  cleandir_files_number = sum(files_number_in_subfolders)
+  if cleandir_files_number == 0:
+    print 'dir to clean is empty'
+    sys.exit(1)
 
+  while os.path.exists(todir) and os.listdir(todir) != []:
+    print 'dir to output already exists.'
+    answer = raw_input('do you want to overwrite it? (y/n) ')
+    answer = answer.lower()
+    if answer in ['y', 'yes']:
+      print 'removing: ' + todir
+      shutil.rmtree(todir)
+      print 'dir was removed successfully'
+    elif answer in ['n', 'no']:
+      todir = raw_input('enter new dir to output: ')
+    else:
+      print 'incorrect answer was typed'
+      sys.exit(1)
+  return todir, cleandir_files_number  
+
+
+def main():
+  todir, cleandir = check_arguments(sys.argv[1:])
+
+  print 'dir to output: ' + todir
+  print 'dir to clean: ' + cleandir
+
+  todir, cleandir_files_number = check_input(todir, cleandir)
   exts_types = extensions_types()
   ext_to_filetype = extension_to_filetype(exts_types)
 
-  listdir(cleandir, todir, ext_to_filetype, cleandir_files_number)
+  print 'started cleaning'
+
+  timestart = time.time()
+  listdir(cleandir, todir, cleandir_files_number, ext_to_filetype, {})
 
   print 'processed files: ' + str(total_files_number)
   print 'unknown files: ' + '{:.2f}%'.format(unknown_files_number / float(total_files_number) * 100)  
-  print 'done'
+
+  timedelta = '{:.0f}'.format(time.time() - timestart)
+  
+  print 'cleaned in ' + split_seconds(timedelta)
 
 
 if __name__ == '__main__':
