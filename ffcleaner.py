@@ -224,6 +224,14 @@ def check_arguments(args):
 
 
 def check_input(todir, cleandir):
+  if todir == cleandir:
+    print 'dir to clean and dir to output must be different'
+    sys.exit(1)
+
+  if not os.path.exists(cleandir):
+    print 'dir to clean doesn\'t exist'
+    sys.exit(1)
+
   files_number_in_subfolders = [len(filenames) for dirpath, dirnames, filenames in os.walk(cleandir)]
   cleandir_files_number = sum(files_number_in_subfolders)
   if cleandir_files_number == 0:
@@ -237,7 +245,7 @@ def check_input(todir, cleandir):
     if answer in ['y', 'yes']:
       print 'removing: ' + todir
       shutil.rmtree(todir)
-      print 'dir was removed successfully'
+      print 'removed successfully'
     elif answer in ['n', 'no']:
       todir = raw_input('enter new dir to output: ')
     else:
