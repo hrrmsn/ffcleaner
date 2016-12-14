@@ -1,7 +1,7 @@
 #!/usr/bin/python -tt
 
 '''
-Tool should be create a follow structure:
+Script should be create a follow structure:
 ->[images]
 ->[code]
 ->[document]
@@ -30,8 +30,12 @@ import os
 import sys
 import time
 import shutil
+import appdirs
 
-IMAGES_EXTS = ['image', '.jpg', '.jpeg', '.jpe', '.jp2', '.bmp', '.bmp2', '.bmp3', '.gif', '.png', '.png8', '.png24', 
+from datetime import datetime
+from time import strftime
+
+IMAGE_EXTS = ['image', '.jpg', '.jpeg', '.jpe', '.jp2', '.bmp', '.bmp2', '.bmp3', '.gif', '.png', '.png8', '.png24', 
 '.png32', '.tiff', '.tif', '.ptif', '.tiff64', '.psd', '.xcf', '.ico', '.icon', '.svg', '.svgz', '.msvgz', '.eps', 
 '.eps2', '.eps3', '.epsf', '.ai', '.nef', '.cr2', '.crw', '.dcr', '.kdc', '.k25', '.x3f', '.arw', '.sr2', '.srf', 
 '.mrw', '.erf', '.raf', '.pct', '.pict', '.dds', '.dng', '.pex', '.3fr', '.ppm', '.orf', '.pef', '.aai', '.exr', 
@@ -82,9 +86,14 @@ SECONDS_IN_MINUTE = 60
 TIME_UNITS = [('d', SECONDS_IN_DAY), ('h', SECONDS_IN_HOUR), ('min', SECONDS_IN_MINUTE), ('sec', 1)]
 
 
+def inform(info):
+  print info
+  log('log', info)
+
+
 def extensions_types():
   exts_types = []
-  exts_types.append(IMAGES_EXTS)
+  exts_types.append(IMAGE_EXTS)
   exts_types.append(CODE_EXTS)
   exts_types.append(DOCUMENT_EXTS)
   exts_types.append(EBOOKS_EXTS)
@@ -151,7 +160,7 @@ def cleanfile(filepath, todir, ftype, filenames_storage):
     os.makedirs(destination)
 
   fulldest = full_destination(destination, filepath, filenames_storage)
-  shutil.copy2(filepath, fulldest)  
+  shutil.copy2(filepath, fulldest)
 
 
 total_files_number = 0
@@ -172,7 +181,7 @@ def listdir(path, todir, cleandir_files_number, ext_to_filetype, filenames_stora
       new_progress = int('{:.0f}'.format(total_files_number * 100.0 / cleandir_files_number))
       if progress != new_progress:
         progress = new_progress
-        print str(progress) + '% complete'
+        inform(str(progress) + '% complete')
 
       ftype = filetype(fullpath, ext_to_filetype)
       if ftype == 'unknown':
@@ -195,28 +204,28 @@ def split_seconds(seconds):
 
 def check_arguments(args):
   if not args:
-    print 'usage: [--todir dir] dir'
+    inform('usage: [--todir dir] dir')
     sys.exit(1)
 
   todir = ''
   if args[0].startswith('--'):
     if args[0] != '--todir':
-      print 'error: unsupported option'
+      inform('error: unsupported option')
       sys.exit(1)
     if len(args) == 1:
-      print 'error: must specify target dir'
+      inform('error: must specify target dir')
       sys.exit(1)
     todir = args[1]
     del args[:2]
 
   if not args:
-    print 'error: must specify dir to clean'
+    inform('error: must specify dir to clean')
     sys.exit(1)
   elif len(args) > 1:
     if '--todir' in ''.join(args):
-      print 'error: todir option must be the first'
+      inform('error: todir option must be the first')
       sys.exit(1)
-    print 'error: must specify only one dir to clean'
+      inform('error: must specify only one dir to clean')
     sys.exit(1)
   
   cleandir = args[0]
@@ -225,56 +234,80 @@ def check_arguments(args):
 
 def check_input(todir, cleandir):
   if todir == cleandir:
-    print 'dir to clean and dir to output must be different'
+    inform('error: dir to clean and dir to output must be different')
     sys.exit(1)
 
   if not os.path.exists(cleandir):
-    print 'dir to clean doesn\'t exist'
+    inform('error: dir to clean doesn\'t exist')
     sys.exit(1)
 
   files_number_in_subfolders = [len(filenames) for dirpath, dirnames, filenames in os.walk(cleandir)]
   cleandir_files_number = sum(files_number_in_subfolders)
   if cleandir_files_number == 0:
-    print 'dir to clean is empty'
+    inform('error: dir to clean is empty or doesn\'t contain any files')
     sys.exit(1)
 
   while os.path.exists(todir) and os.listdir(todir) != []:
-    print 'dir to output already exists.'
+    inform('dir to output already exists.')
     answer = raw_input('do you want to overwrite it? (y/n) ')
     answer = answer.lower()
+    log('log', 'do you want to overwrite it? (y/n) ' + answer)
     if answer in ['y', 'yes']:
-      print 'removing: ' + todir
+      inform('removing: ' + todir)
       shutil.rmtree(todir)
-      print 'removed successfully'
+      inform('removed successfully')
     elif answer in ['n', 'no']:
       todir = raw_input('enter new dir to output: ')
+      log('log', 'enter new dir to output: ' + todir)
     else:
-      print 'incorrect answer was typed'
+      inform('error: incorrect answer was typed')
       sys.exit(1)
-  return todir, cleandir_files_number  
+  return todir, cleandir_files_number
+
+
+def logpath():
+  appname = 'ffcleaner'
+  appauthor = 'hrrmsn'
+  logdir = appdirs.user_log_dir(appname, appauthor)
+  if not os.path.exists(logdir):
+    os.makedirs(logdir)
+  return os.path.join(logdir, 'log.txt')
+
+LOGFILE = logpath()
+
+
+#action={'start', 'log', 'end'}
+def log(action, message=''):
+  f = open(LOGFILE, 'a')
+  if action == 'start':
+    message = datetime.now().strftime('%Y-%d-%m %H:%M:%S')
+  f.write(message + '\n')
+  f.close()
 
 
 def main():
   todir, cleandir = check_arguments(sys.argv[1:])
 
-  print 'dir to output: ' + todir
-  print 'dir to clean: ' + cleandir
+  log('start')
+  inform('dir to output: ' + todir)
+  inform('dir to clean: ' + cleandir)
 
   todir, cleandir_files_number = check_input(todir, cleandir)
   exts_types = extensions_types()
   ext_to_filetype = extension_to_filetype(exts_types)
 
-  print 'started cleaning'
+  inform('started cleaning')
 
   timestart = time.time()
   listdir(cleandir, todir, cleandir_files_number, ext_to_filetype, {})
 
-  print 'processed files: ' + str(total_files_number)
-  print 'unknown files: ' + '{:.2f}%'.format(unknown_files_number / float(total_files_number) * 100)  
+  inform('processed files: ' + str(total_files_number))
+  inform('unknown files: ' + '{:.2f}%'.format(unknown_files_number / float(total_files_number) * 100))
 
   timedelta = '{:.0f}'.format(time.time() - timestart)
   
-  print 'cleaned in ' + split_seconds(timedelta)
+  inform('cleaned in ' + split_seconds(timedelta))
+  log('end')
 
 
 if __name__ == '__main__':
