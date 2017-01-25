@@ -32,6 +32,9 @@ import time
 import shutil
 import appdirs
 import zipfile
+import platform
+import requests
+import traceback
 
 from datetime import datetime
 from time import strftime
@@ -86,6 +89,14 @@ SECONDS_IN_HOUR = 60 * 60
 SECONDS_IN_MINUTE = 60
 TIME_UNITS = [('d', SECONDS_IN_DAY), ('h', SECONDS_IN_HOUR), ('min', SECONDS_IN_MINUTE), ('sec', 1)]
 
+ENCODED_API_BASE_URL = 'aHR0cHM6Ly9hcGkubWFpbGd1bi5uZXQvdjMvc2FuZGJveDk0OGJjMWJkNzQ5MjRkMjU5MGFiNzFlYzI5MTYzNTM5Lm1haW\
+  xndW4ub3JnL21lc3NhZ2Vz'
+ENCODED_SENDER_EMAIL = 'ZmZjbGVhbmVyIDxtYWlsZ3VuQHNhbmRib3g5NDhiYzFiZDc0OTI0ZDI1OTBhYjcxZWMyOTE2MzUzOS5tYWlsZ3VuLm9yZz\
+  4='
+ENCODED_API_KEY = 'a2V5LTM0M2Y1MGYxZjAzOTNiOGUyYTA1NDAyMGQxZmIyNjI1'
+ENCODED_SUPPORT_EMAIL = 'aHJybXNuQHlhbmRleC5ydQ=='
+ENCODING_SCHEME = 'base64'
+
 
 def extensions_types():
   exts_types = []
@@ -135,6 +146,7 @@ def filetype(filepath, ext_to_filetype, unknown_exts):
 def full_destination(not_fulldest, filepath, filenames_storage):
   basename = os.path.basename(filepath)
   filename = basename
+
   if not basename in filenames_storage:
     filenames_storage[basename] = 0
   else:
@@ -154,8 +166,12 @@ def cleanfile(filepath, todir, ftype, filenames_storage):
     ext = '[no_extension]'
   destination = os.path.join(destination, ext)
 
-  if not os.path.exists(destination):
-    os.makedirs(destination)
+  try:
+    if not os.path.exists(destination):
+      os.makedirs(destination)
+  except OSError:
+    inform('Error when creating destination path to file (' + filepath + '): \n' + traceback.format_exc())
+    sys_exit(1, error='OSError', send_log=True)
 
   fulldest = full_destination(destination, filepath, filenames_storage)
   shutil.copy2(filepath, fulldest)
@@ -209,8 +225,12 @@ def logdir():
   appname = 'ffcleaner'
   appauthor = 'hrrmsn'
   logpath = appdirs.user_log_dir(appname, appauthor)
-  if not os.path.exists(logpath):
-    os.makedirs(logpath)
+  try:
+    if not os.path.exists(logpath):
+      os.makedirs(logpath)
+  except OSError:
+    inform('Error when creating path to log file (' + logpath + '): \n' + traceback.format_exc())
+    sys_exit(1, error='OSError', send_log=True)
   return logpath
 
 LOGFILE = os.path.join(logdir(), 'log.txt')
@@ -218,7 +238,6 @@ LOGFILE = os.path.join(logdir(), 'log.txt')
 
 #action={'start', 'log', 'end'}
 def log(action, message=''):
-  f = open(LOGFILE, 'a')
   timestamp = '[' + datetime.now().strftime('%Y-%d-%m %H:%M:%S') + ']'
   if action == 'start':
     message = timestamp + ' Start logging.'
@@ -226,12 +245,31 @@ def log(action, message=''):
     message = timestamp + ' ' + message
   elif action == 'end':
     message = timestamp + ' End logging.\n'
-  f.write(message + '\n')
-  f.close()  
+
+  try:
+    f = open(LOGFILE, 'a')
+    f.write(message + '\n')
+  except IOError:
+    inform('Error when writing to log file a following message \'' + message + '\': \n' + traceback.format_exc())
+  finally:
+    f.close()
 
 
-def sys_exit(code):
-  log('end')
+def sys_exit(code, error='', send_log=False):
+  if send_log:
+    inform('Creating archive with the log file.')
+    log('end')
+
+    archive_path = archive_file(LOGFILE)
+
+    print 'Archive was created successfully. Sending archive via email.'
+    try:
+      sendmail(ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME), ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME), error, 
+        'Details are inside the log file.', archive_path)
+    except requests.ConnectionError:
+      print 'Warning: some problems with internet connection. Log wasn\'t sent. \n' + traceback.format_exc()
+  else:
+    log('end')
   sys.exit(code)
 
 
@@ -241,13 +279,13 @@ def check_arguments(args):
     inform('Usage: --logpath.')
     sys_exit(1)
 
-  if len(args) == 1 and args[0] == '--logpath':
+  if len(args) == 1 and args[0].lower() == '--logpath':
     inform(LOGFILE)
     sys_exit(0)
 
   todir = ''
   if args[0].startswith('--'):
-    if args[0] != '--todir':
+    if args[0].lower() != '--todir':
       inform('Error: unsupported option.')
       sys_exit(1)
     if len(args) == 1:
@@ -276,8 +314,13 @@ def overwrite(path):
   log('log', 'Dir to output already exists. Do you want to overwrite it? (y/n) ' + answer)
   if answer in ['y', 'yes']:
     inform('Removing: ' + path + '.')
-    shutil.rmtree(path)
-    inform('Removed successfully.')
+    try:
+      shutil.rmtree(path)
+    except OSError:
+      inform('Error when removing directory (' + path + '): \n' + traceback.format_exc())
+      sys_exit(1, error='OSError', send_log=True)
+    else:
+      inform('Removed successfully.')
   elif answer in ['n', 'no']:
     path = raw_input('Enter new dir to output: ')
     log('log', 'Enter new dir to output: ' + path + '.')
@@ -307,7 +350,7 @@ def check_input(todir, cleandir):
   return todir, cleandir_files_number
 
 
-def archivefile(filepath):
+def archive_file(filepath):
   basename = os.path.basename(filepath)
   basename_ext_cutted = os.path.splitext(basename)[0]
   archive_name = 'zipped_' + basename_ext_cutted + '.zip'
@@ -315,18 +358,55 @@ def archivefile(filepath):
   basedir = os.path.dirname(filepath)
   archive_fullname = os.path.join(basedir, archive_name)
 
-  zfile = zipfile.ZipFile(archive_fullname, mode='w')
+  try:
+    zfile = zipfile.ZipFile(archive_fullname, mode='w')
+    zfile.write(filepath, compress_type=zipfile.ZIP_DEFLATED)
+  except (RuntimeError, IOError) as error:
+    inform('Error when processing zip file with log. \nPath to archive: ' + archive_fullname + '.\n')
+    inform('Path to log for compressing: ' + filepath + '.\n' + traceback.format_exc())
+    sys_exit(1, error=type(error).__name__, send_log=True)
+  finally:
+    zfile.close()
+  return archive_fullname
 
-  zfile.write(filepath, compress_type=zipfile.ZIP_DEFLATED)
-  zfile.close()
+
+def system_name():
+  if sys.platform.startswith('linux'):
+    return 'Linux'
+  elif sys.platform.startswith('win'):
+    return 'Windows'
+  elif sys.platform.startswith('darwin'):
+    return 'Mac OS'
+  return 'rare OS type'
+
+
+def sendmail(mailfrom, mailto, subject, message, attached_files):
+  attachments = []
+  for filepath in attached_files:
+    try:
+      fopen = open(filepath)
+      attachments.append(('attachment', fopen))
+    except IOError:
+      inform('Error when preparing attached files for send via email. \nPath to problem file: ' + filepath + '.\n')
+      inform(traceback.format_exc())
+      sys_exit(1, error='IOError', send_log=True)
+    finally:
+      fopen.close()
+  return requests.post(
+    ENCODED_API_BASE_URL.decode(ENCODING_SCHEME), 
+    auth=('api', ENCODED_API_KEY.decode(ENCODING_SCHEME)), 
+    files=attachments, 
+    data={'from': mailfrom, 'to': [mailto], 'subject': subject, 'text': message})
 
 
 def main():
   log('start')
-  log('log', ' '.join(sys.argv))
+  log('log', 'OS is ' + system_name() + '.')
+  log('log', 'Platform info: ' + platform.platform() + '.')
+  log('log', 'Launch command: ' + ' '.join(sys.argv) + '.')
 
   todir, cleandir = check_arguments(sys.argv[1:])
-  
+    
   inform('Dir to output: ' + todir + '.')
   inform('Dir to clean: ' + cleandir + '.')
 
@@ -342,18 +422,12 @@ def main():
 
   inform('Processed files: ' + str(total_files_number) + '.')
   inform('Unknown files: ' + '{:.2f}%'.format(unknown_files_number / float(total_files_number) * 100) + '.')
-  log('log', 'List of unknown extensions: [\'' + '\', \''.join(unknown_exts) + '\']')
+  log('log', 'List of unknown extensions: [\'' + '\', \''.join(unknown_exts) + '\'].')
 
   timedelta = '{:.0f}'.format(time.time() - timestart)
-  
+    
   inform('Cleaned in ' + split_seconds(timedelta) + '.')
   log('end')
-
-  print 'Creating zip archive with log file.'
-  
-  archivefile(LOGFILE)
-  
-  print 'Zip file was created successfully.'
 
 
 if __name__ == '__main__':
