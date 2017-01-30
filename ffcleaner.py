@@ -170,7 +170,8 @@ def cleanfile(filepath, todir, ftype, filenames_storage):
     if not os.path.exists(destination):
       os.makedirs(destination)
   except OSError:
-    inform('Error when creating destination path to file (' + filepath + '): \n' + traceback.format_exc())
+    inform('Error when creating destination path to file: ' + filepath + '.')
+    log('log', traceback.format_exc())
     sys_exit(1, error='OSError', send_log=True)
 
   fulldest = full_destination(destination, filepath, filenames_storage)
@@ -229,7 +230,8 @@ def logdir():
     if not os.path.exists(logpath):
       os.makedirs(logpath)
   except OSError:
-    inform('Error when creating path to log file (' + logpath + '): \n' + traceback.format_exc())
+    inform('Error when creating path to log file: ' + logpath + '.')
+    log('log', traceback.format_exc())
     sys_exit(1, error='OSError', send_log=True)
   return logpath
 
@@ -250,7 +252,9 @@ def log(action, message=''):
     f = open(LOGFILE, 'a')
     f.write(message + '\n')
   except IOError:
-    inform('Error when writing to log file a following message \'' + message + '\': \n' + traceback.format_exc())
+    inform('Error when writing to log file a message: \'' + message + '\'.')
+    log('log', traceback.format_exc())
+    sys_exit(1, error='IOError', send_log=True)
   finally:
     f.close()
 
@@ -259,15 +263,25 @@ def sys_exit(code, error='', send_log=False):
   if send_log:
     inform('Creating archive with the log file.')
     log('end')
-
+    
     archive_path = archive_file(LOGFILE)
-
-    print 'Archive was created successfully. Sending archive via email.'
+    
+    print 'Archive was created successfully. \nSending archive via email.'
+    attachments = []
     try:
-      sendmail(ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME), ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME), error, 
-        'Details are inside the log file.', archive_path)
+      response, attachments = sendmail(ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME), 
+        ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME), error, 'Details are inside the log file.', [archive_path])
+      if response.status_code != requests.codes.ok:
+        response.raise_for_status()
+      print 'Log was sent succesfully.'
     except requests.ConnectionError:
-      print 'Warning: some problems with internet connection. Log wasn\'t sent. \n' + traceback.format_exc()
+      print 'Warning: some problems with internet connection. Log wasn\'t sent.'
+    except requests.exception.HTTPError:
+      print 'Failed to send log. (Status: ' + str(response.status_code) + ' ' + response.reason + '.)'
+    finally:
+      for attachment in attachments:
+        attached_file = attachment[1]
+        attached_file.close()
   else:
     log('end')
   sys.exit(code)
@@ -332,7 +346,7 @@ def overwrite(path):
 
 def check_input(todir, cleandir):
   if todir == cleandir:
-    inform('Error: dir to clean and dir to output must be different.')
+    inform('Error: dir to clean and dir to output should be different.')
     sys_exit(1)
 
   if not os.path.exists(cleandir):
@@ -361,10 +375,10 @@ def archive_file(filepath):
   try:
     zfile = zipfile.ZipFile(archive_fullname, mode='w')
     zfile.write(filepath, compress_type=zipfile.ZIP_DEFLATED)
-  except (RuntimeError, IOError) as error:
+  except (RuntimeError, IOError) as exception:
     inform('Error when processing zip file with log. \nPath to archive: ' + archive_fullname + '.\n')
     inform('Path to log for compressing: ' + filepath + '.\n' + traceback.format_exc())
-    sys_exit(1, error=type(error).__name__, send_log=True)
+    sys_exit(1, error=type(exception).__name__, send_log=True)
   finally:
     zfile.close()
   return archive_fullname
@@ -390,15 +404,16 @@ def sendmail(mailfrom, mailto, subject, message, attached_files):
       inform('Error when preparing attached files for send via email. \nPath to problem file: ' + filepath + '.\n')
       inform(traceback.format_exc())
       sys_exit(1, error='IOError', send_log=True)
-    finally:
-      fopen.close()
-  return requests.post(
+
+  response = requests.post(
     ENCODED_API_BASE_URL.decode(ENCODING_SCHEME), 
     auth=('api', ENCODED_API_KEY.decode(ENCODING_SCHEME)), 
     files=attachments, 
     data={'from': mailfrom, 'to': [mailto], 'subject': subject, 'text': message})
+  return response, attachments
 
 
+# TODO: delete log file after sending via email
 def main():
   log('start')
   log('log', 'OS is ' + system_name() + '.')
@@ -418,7 +433,11 @@ def main():
 
   timestart = time.time()
   unknown_exts = []
-  plungedir(cleandir, todir, cleandir_files_number, ext_to_filetype, {}, unknown_exts)
+  try:
+    plungedir(cleandir, todir, cleandir_files_number, ext_to_filetype, {}, unknown_exts)
+  except (OSError, IOError) as exception:
+    inform('Error when cleaning directory (' + cleandir + '): \n' + traceback.format_exc())
+    sys_exit(1, error=type(exception).__name__, send_log=True)
 
   inform('Processed files: ' + str(total_files_number) + '.')
   inform('Unknown files: ' + '{:.2f}%'.format(unknown_files_number / float(total_files_number) * 100) + '.')
