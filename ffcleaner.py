@@ -30,14 +30,15 @@ import os
 import sys
 import time
 import shutil
-import appdirs
 import zipfile
 import platform
-import requests
 import traceback
 
 from datetime import datetime
 from time import strftime
+
+import appdirs
+import requests
 
 IMAGE_EXTS = ['image', '.jpg', '.jpeg', '.jpe', '.jp2', '.bmp', '.bmp2', '.bmp3', '.gif', '.png', '.png8', '.png24', 
 '.png32', '.tiff', '.tif', '.ptif', '.tiff64', '.psd', '.xcf', '.ico', '.icon', '.svg', '.svgz', '.msvgz', '.eps', 
@@ -134,6 +135,7 @@ def extension_to_filetype(exts_types):
   return ext_to_filetype
 
 
+# make an unknown_exts a set?
 def filetype(filepath, ext_to_filetype, unknown_exts):
   ext = os.path.splitext(filepath)[1].lower()
   if ext in ext_to_filetype:
@@ -171,8 +173,8 @@ def cleanfile(filepath, todir, ftype, filenames_storage):
       os.makedirs(destination)
   except OSError:
     inform('Error when creating destination path to file: ' + filepath + '.')
-    log('log', traceback.format_exc())
-    sys_exit(1, error='OSError', send_log=True)
+    log(msg=traceback.format_exc())
+    sys_exit(error='OSError', send_log=True)
 
   fulldest = full_destination(destination, filepath, filenames_storage)
   shutil.copy2(filepath, fulldest)
@@ -180,7 +182,7 @@ def cleanfile(filepath, todir, ftype, filenames_storage):
 
 def inform(info):
   print info
-  log('log', info)  
+  log(msg=info)  
 
 
 total_files_number = 0
@@ -231,59 +233,59 @@ def logdir():
       os.makedirs(logpath)
   except OSError:
     inform('Error when creating path to log file: ' + logpath + '.')
-    log('log', traceback.format_exc())
+    log(msg=traceback.format_exc())
     sys_exit(1, error='OSError', send_log=True)
   return logpath
 
 LOGFILE = os.path.join(logdir(), 'log.txt')
 
 
-#action={'start', 'log', 'end'}
-def log(action, message=''):
+#act={'start', 'log', 'end'}
+def log(act='log', msg=''):
   timestamp = '[' + datetime.now().strftime('%Y-%d-%m %H:%M:%S') + ']'
-  if action == 'start':
-    message = timestamp + ' Start logging.'
-  elif action == 'log':
-    message = timestamp + ' ' + message
-  elif action == 'end':
-    message = timestamp + ' End logging.\n'
+  if act == 'start':
+    msg = timestamp + ' Start logging.'
+  elif act == 'log':
+    msg = timestamp + ' ' + msg
+  elif act == 'end':
+    msg = timestamp + ' End logging.\n'
 
   try:
     f = open(LOGFILE, 'a')
-    f.write(message + '\n')
+    f.write(msg + '\n')
   except IOError:
-    inform('Error when writing to log file a message: \'' + message + '\'.')
-    log('log', traceback.format_exc())
-    sys_exit(1, error='IOError', send_log=True)
+    print 'Error when writing to log file.'
+    sys_exit(1, error='IOError (writing to log)', send_log=True)
   finally:
     f.close()
+
+
+def remove_file(filepath, file_title):
+  try:
+    print 'Removing ' + file_title + '.'
+    os.remove(filepath)
+  except OSError as exception:
+    print 'Error when removing ' + file_title + '. \nSending email with error.'
+    errmsg = 'Error when removing ' + file_title + '. Full stack trace is below. \n' + traceback.format_exc()
+    sendmail(ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME), ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME), 
+      type(exception).__name__ + ' (removing file)', errmsg, [])
+  else:
+    print file_title[:1].upper() + file_title[1:] + ' was removed successfully.'
 
 
 def sys_exit(code, error='', send_log=False):
   if send_log:
     inform('Creating archive with the log file.')
-    log('end')
-    
+    log(act='end')
     archive_path = archive_file(LOGFILE)
-    
     print 'Archive was created successfully. \nSending archive via email.'
-    attachments = []
-    try:
-      response, attachments = sendmail(ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME), 
-        ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME), error, 'Details are inside the log file.', [archive_path])
-      if response.status_code != requests.codes.ok:
-        response.raise_for_status()
-      print 'Log was sent succesfully.'
-    except requests.ConnectionError:
-      print 'Warning: some problems with internet connection. Log wasn\'t sent.'
-    except requests.exception.HTTPError:
-      print 'Failed to send log. (Status: ' + str(response.status_code) + ' ' + response.reason + '.)'
-    finally:
-      for attachment in attachments:
-        attached_file = attachment[1]
-        attached_file.close()
+    sendmail(ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME), ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME), error, 
+      'Details are inside the log file.', [archive_path])
+
+    remove_file(LOGFILE, 'log file')
+    remove_file(archive_path, 'archive with log')
   else:
-    log('end')
+    log(act='end')
   sys.exit(code)
 
 
@@ -325,7 +327,7 @@ def check_arguments(args):
 def overwrite(path):
   answer = raw_input('Dir to output already exists. Do you want to overwrite it? (y/n) ')
   answer = answer.lower()
-  log('log', 'Dir to output already exists. Do you want to overwrite it? (y/n) ' + answer)
+  log(msg='Dir to output already exists. Do you want to overwrite it? (y/n) ' + answer)
   if answer in ['y', 'yes']:
     inform('Removing: ' + path + '.')
     try:
@@ -337,7 +339,7 @@ def overwrite(path):
       inform('Removed successfully.')
   elif answer in ['n', 'no']:
     path = raw_input('Enter new dir to output: ')
-    log('log', 'Enter new dir to output: ' + path + '.')
+    log(msg='Enter new dir to output: ' + path + '.')
   else:
     inform('Error: incorrect answer was typed.')
     sys_exit(1)
@@ -376,9 +378,11 @@ def archive_file(filepath):
     zfile = zipfile.ZipFile(archive_fullname, mode='w')
     zfile.write(filepath, compress_type=zipfile.ZIP_DEFLATED)
   except (RuntimeError, IOError) as exception:
-    inform('Error when processing zip file with log. \nPath to archive: ' + archive_fullname + '.\n')
-    inform('Path to log for compressing: ' + filepath + '.\n' + traceback.format_exc())
-    sys_exit(1, error=type(exception).__name__, send_log=True)
+    print 'Error when processing zip file. \nSending email without attachments.'
+    errmsg = 'Error when processing zip file. Full stack trace is below. \n' + traceback.format_exc()
+    sendmail(ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME), ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME), 
+      type(exception).__name__ + ' (processing zip archive)', errmsg, [])
+    sys.exit(1)
   finally:
     zfile.close()
   return archive_fullname
@@ -394,6 +398,26 @@ def system_name():
   return 'rare OS type'
 
 
+def sendpost(mailfrom, mailto, subject, message, attachments):
+  try:
+    response = requests.post(
+      ENCODED_API_BASE_URL.decode(ENCODING_SCHEME), 
+      auth=('api', ENCODED_API_KEY.decode(ENCODING_SCHEME)), 
+      files=attachments, 
+      data={'from': mailfrom, 'to': [mailto], 'subject': subject, 'text': message})
+    if response.status_code != requests.codes.ok:
+      response.raise_for_status()
+    print 'Email was sent successfully.'
+  except requests.ConnectionError:
+    print 'Warning: some problems with internet connection. Email wasn\'t sent.'
+  except requests.code.HTTPError:
+    print 'Failed to send email. (Status: ' + str(response.status_code) + ' ' + response.reason + '.)'
+  finally:
+    for attachment in attachments:
+      attached_file = attachment[1]
+      attached_file.close()
+
+
 def sendmail(mailfrom, mailto, subject, message, attached_files):
   attachments = []
   for filepath in attached_files:
@@ -401,24 +425,20 @@ def sendmail(mailfrom, mailto, subject, message, attached_files):
       fopen = open(filepath)
       attachments.append(('attachment', fopen))
     except IOError:
-      inform('Error when preparing attached files for send via email. \nPath to problem file: ' + filepath + '.\n')
-      inform(traceback.format_exc())
-      sys_exit(1, error='IOError', send_log=True)
-
-  response = requests.post(
-    ENCODED_API_BASE_URL.decode(ENCODING_SCHEME), 
-    auth=('api', ENCODED_API_KEY.decode(ENCODING_SCHEME)), 
-    files=attachments, 
-    data={'from': mailfrom, 'to': [mailto], 'subject': subject, 'text': message})
-  return response, attachments
+      print 'Error when preparing attachments for sending via email. \nSending email without attachments.'
+      errmsg = 'Couldn\'t prepare attachments for sending via email. Full stack trace is below. \n'\
+        + traceback.format_exc()
+      sendpost(mailfrom, mailto, 'IOError (problems with attachments)', errmsg, [])
+      sys.exit(1)
+  sendpost(mailfrom, mailto, subject, message, attachments)
 
 
 # TODO: delete log file after sending via email
 def main():
-  log('start')
-  log('log', 'OS is ' + system_name() + '.')
-  log('log', 'Platform info: ' + platform.platform() + '.')
-  log('log', 'Launch command: ' + ' '.join(sys.argv) + '.')
+  log(act='start')
+  log(msg='OS is ' + system_name() + '.')
+  log(msg='Platform info: ' + platform.platform() + '.')
+  log(msg='Launch command: ' + ' '.join(sys.argv) + '.')
 
   todir, cleandir = check_arguments(sys.argv[1:])
     
@@ -441,12 +461,12 @@ def main():
 
   inform('Processed files: ' + str(total_files_number) + '.')
   inform('Unknown files: ' + '{:.2f}%'.format(unknown_files_number / float(total_files_number) * 100) + '.')
-  log('log', 'List of unknown extensions: [\'' + '\', \''.join(unknown_exts) + '\'].')
+  log(msg='List of unknown extensions: [\'' + '\', \''.join(unknown_exts) + '\'].')
 
   timedelta = '{:.0f}'.format(time.time() - timestart)
     
   inform('Cleaned in ' + split_seconds(timedelta) + '.')
-  log('end')
+  log(act='end')
 
 
 if __name__ == '__main__':
