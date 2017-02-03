@@ -23,7 +23,7 @@ Script should be create a follow structure:
 ->[calendar]
 ->[installer]
 ->[torrent]
-->[unknown] (should be sorted by extension and moved to the different dirs)
+->[unknown] (should be sorted by extension and be moved to the different dirs)
 '''
 
 import os
@@ -35,7 +35,6 @@ import platform
 import traceback
 
 from datetime import datetime
-from time import strftime
 
 import appdirs
 import requests
@@ -98,6 +97,9 @@ ENCODED_API_KEY = 'a2V5LTM0M2Y1MGYxZjAzOTNiOGUyYTA1NDAyMGQxZmIyNjI1'
 ENCODED_SUPPORT_EMAIL = 'aHJybXNuQHlhbmRleC5ydQ=='
 ENCODING_SCHEME = 'base64'
 
+DECODED_SENDER_EMAIL = ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME)
+DECODED_SUPPORT_EMAIL = ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME)
+
 
 def extensions_types():
   exts_types = []
@@ -135,13 +137,11 @@ def extension_to_filetype(exts_types):
   return ext_to_filetype
 
 
-# make an unknown_exts a set?
 def filetype(filepath, ext_to_filetype, unknown_exts):
   ext = os.path.splitext(filepath)[1].lower()
   if ext in ext_to_filetype:
     return ext_to_filetype[ext]
-  if not ext in unknown_exts:
-    unknown_exts.append(ext)
+  unknown_exts.add(ext)
   return 'unknown'
 
 
@@ -174,7 +174,7 @@ def cleanfile(filepath, todir, ftype, filenames_storage):
   except OSError:
     inform('Error when creating destination path to file: ' + filepath + '.')
     log(msg=traceback.format_exc())
-    sys_exit(error='OSError', send_log=True)
+    sys_exit(1, error='OSError', send_log=True)
 
   fulldest = full_destination(destination, filepath, filenames_storage)
   shutil.copy2(filepath, fulldest)
@@ -254,33 +254,34 @@ def log(act='log', msg=''):
     f = open(LOGFILE, 'a')
     f.write(msg + '\n')
   except IOError:
-    print 'Error when writing to log file.'
-    sys_exit(1, error='IOError (writing to log)', send_log=True)
+    print 'Error when writing to log file. \nSending email with error...'
+    errmsg = 'Error when writing to log file. Full stack trace is below. \n' + traceback.format_exc()
+    sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, 'IOError (writing to log)', errmsg, [])
+    sys.exit(1)
   finally:
     f.close()
 
 
 def remove_file(filepath, file_title):
   try:
-    print 'Removing ' + file_title + '.'
+    print 'Removing ' + file_title + '...'
     os.remove(filepath)
-  except OSError as exception:
-    print 'Error when removing ' + file_title + '. \nSending email with error.'
+  except OSError:
+    print 'Error when removing ' + file_title + '. \nSending email with error...'
     errmsg = 'Error when removing ' + file_title + '. Full stack trace is below. \n' + traceback.format_exc()
-    sendmail(ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME), ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME), 
-      type(exception).__name__ + ' (removing file)', errmsg, [])
+    sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, 'OSError (removing file)', errmsg, [])
   else:
-    print file_title[:1].upper() + file_title[1:] + ' was removed successfully.'
+    print 'Removed successfully.'
 
 
 def sys_exit(code, error='', send_log=False):
   if send_log:
-    inform('Creating archive with the log file.')
+    inform('Creating archive with the log file...')
     log(act='end')
+
     archive_path = archive_file(LOGFILE)
-    print 'Archive was created successfully. \nSending archive via email.'
-    sendmail(ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME), ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME), error, 
-      'Details are inside the log file.', [archive_path])
+    print 'Archive was created successfully. \nSending archive via email...'
+    sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, error, 'Details are inside the log file.', [archive_path])
 
     remove_file(LOGFILE, 'log file')
     remove_file(archive_path, 'archive with log')
@@ -293,7 +294,7 @@ def check_arguments(args):
   if not args:
     inform('Usage: [--todir dir] dir.')
     inform('Usage: --logpath.')
-    sys_exit(1)
+    sys_exit(0)
 
   if len(args) == 1 and args[0].lower() == '--logpath':
     inform(LOGFILE)
@@ -329,11 +330,11 @@ def overwrite(path):
   answer = answer.lower()
   log(msg='Dir to output already exists. Do you want to overwrite it? (y/n) ' + answer)
   if answer in ['y', 'yes']:
-    inform('Removing: ' + path + '.')
+    inform('Removing: ' + path + '...')
     try:
       shutil.rmtree(path)
     except OSError:
-      inform('Error when removing directory (' + path + '): \n' + traceback.format_exc())
+      inform('Error when removing directory: ' + path + '. \n' + traceback.format_exc())
       sys_exit(1, error='OSError', send_log=True)
     else:
       inform('Removed successfully.')
@@ -355,11 +356,15 @@ def check_input(todir, cleandir):
     inform('Error: dir to clean doesn\'t exist.')
     sys_exit(1)
 
-  files_number_in_subfolders = [len(filenames) for dirpath, dirnames, filenames in os.walk(cleandir)]
+  inform('Counting files to clean...')
+  files_number_in_subfolders = [len(filenames) for dirpath, dirnames, filenames in os.walk(cleandir)]  
   cleandir_files_number = sum(files_number_in_subfolders)
+
   if cleandir_files_number == 0:
     inform('Error: dir to clean is empty or doesn\'t contain any files.')
     sys_exit(1)
+
+  inform(str(cleandir_files_number) + ' files found.')
 
   while os.path.exists(todir) and os.listdir(todir) != []:
     todir = overwrite(todir)
@@ -378,10 +383,10 @@ def archive_file(filepath):
     zfile = zipfile.ZipFile(archive_fullname, mode='w')
     zfile.write(filepath, compress_type=zipfile.ZIP_DEFLATED)
   except (RuntimeError, IOError) as exception:
-    print 'Error when processing zip file. \nSending email without attachments.'
+    print 'Error when processing zip file. \nSending email without attachments...'
     errmsg = 'Error when processing zip file. Full stack trace is below. \n' + traceback.format_exc()
-    sendmail(ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME), ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME), 
-      type(exception).__name__ + ' (processing zip archive)', errmsg, [])
+    sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, type(exception).__name__ + ' (processing zip archive)', 
+      errmsg, [])
     sys.exit(1)
   finally:
     zfile.close()
@@ -407,11 +412,12 @@ def sendpost(mailfrom, mailto, subject, message, attachments):
       data={'from': mailfrom, 'to': [mailto], 'subject': subject, 'text': message})
     if response.status_code != requests.codes.ok:
       response.raise_for_status()
-    print 'Email was sent successfully.'
   except requests.ConnectionError:
     print 'Warning: some problems with internet connection. Email wasn\'t sent.'
   except requests.code.HTTPError:
     print 'Failed to send email. (Status: ' + str(response.status_code) + ' ' + response.reason + '.)'
+  else:
+    print 'Email was sent successfully.'
   finally:
     for attachment in attachments:
       attached_file = attachment[1]
@@ -425,7 +431,7 @@ def sendmail(mailfrom, mailto, subject, message, attached_files):
       fopen = open(filepath)
       attachments.append(('attachment', fopen))
     except IOError:
-      print 'Error when preparing attachments for sending via email. \nSending email without attachments.'
+      print 'Error when preparing attachments for sending via email. \nSending email without attachments...'
       errmsg = 'Couldn\'t prepare attachments for sending via email. Full stack trace is below. \n'\
         + traceback.format_exc()
       sendpost(mailfrom, mailto, 'IOError (problems with attachments)', errmsg, [])
@@ -433,7 +439,6 @@ def sendmail(mailfrom, mailto, subject, message, attached_files):
   sendpost(mailfrom, mailto, subject, message, attachments)
 
 
-# TODO: delete log file after sending via email
 def main():
   log(act='start')
   log(msg='OS is ' + system_name() + '.')
@@ -452,11 +457,11 @@ def main():
   inform('Started cleaning.')
 
   timestart = time.time()
-  unknown_exts = []
+  unknown_exts = set()
   try:
     plungedir(cleandir, todir, cleandir_files_number, ext_to_filetype, {}, unknown_exts)
   except (OSError, IOError) as exception:
-    inform('Error when cleaning directory (' + cleandir + '): \n' + traceback.format_exc())
+    inform('Error when cleaning directory: ' + cleandir + '. \n' + traceback.format_exc())
     sys_exit(1, error=type(exception).__name__, send_log=True)
 
   inform('Processed files: ' + str(total_files_number) + '.')
