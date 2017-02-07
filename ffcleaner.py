@@ -1,4 +1,4 @@
-#!/usr/bin/python -tt
+#!/usr/bin/env python
 
 '''
 Script should be create a follow structure:
@@ -29,6 +29,7 @@ Script should be create a follow structure:
 import os
 import sys
 import time
+import stat
 import shutil
 import zipfile
 import platform
@@ -172,7 +173,7 @@ def cleanfile(filepath, todir, ftype, filenames_storage):
     if not os.path.exists(destination):
       os.makedirs(destination)
   except OSError:
-    inform('Error when creating destination path to file: ' + filepath + '.')
+    inform('Error when creating destination path to file: \'' + filepath + '\'.')
     log(msg=traceback.format_exc())
     sys_exit(1, error='OSError', send_log=True)
 
@@ -232,7 +233,7 @@ def logdir():
     if not os.path.exists(logpath):
       os.makedirs(logpath)
   except OSError:
-    inform('Error when creating path to log file: ' + logpath + '.')
+    inform('Error when creating path to log file: \'' + logpath + '\'.')
     log(msg=traceback.format_exc())
     sys_exit(1, error='OSError', send_log=True)
   return logpath
@@ -267,8 +268,8 @@ def remove_file(filepath, file_title):
     print 'Removing ' + file_title + '...'
     os.remove(filepath)
   except OSError:
-    print 'Error when removing ' + file_title + '. \nSending email with error...'
-    errmsg = 'Error when removing ' + file_title + '. Full stack trace is below. \n' + traceback.format_exc()
+    print 'Error when removing \'' + file_title + '\'. \nSending email with error...'
+    errmsg = 'Error when removing \'' + file_title + '\'. Full stack trace is below. \n' + traceback.format_exc()
     sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, 'OSError (removing file)', errmsg, [])
   else:
     print 'Removed successfully.'
@@ -284,7 +285,7 @@ def sys_exit(code, error='', send_log=False):
     sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, error, 'Details are inside the log file.', [archive_path])
 
     remove_file(LOGFILE, 'log file')
-    remove_file(archive_path, 'archive with log')
+    #remove_file(archive_path, 'archive with log')
   else:
     log(act='end')
   sys.exit(code)
@@ -323,6 +324,11 @@ def check_arguments(args):
   
   cleandir = args[0]
   return todir, cleandir
+  
+  
+def remove_readonly(func, path, exc_info):
+  os.chmod(path, stat.S_IWRITE)
+  func(path)
 
 
 def overwrite(path):
@@ -330,17 +336,17 @@ def overwrite(path):
   answer = answer.lower()
   log(msg='Dir to output already exists. Do you want to overwrite it? (y/n) ' + answer)
   if answer in ['y', 'yes']:
-    inform('Removing: ' + path + '...')
+    inform('Removing: \'' + path + '\'...')
     try:
-      shutil.rmtree(path)
+      shutil.rmtree(path, onerror=remove_readonly)
     except OSError:
-      inform('Error when removing directory: ' + path + '. \n' + traceback.format_exc())
+      inform('Error when removing directory: \'' + path + '\'. \n' + traceback.format_exc())
       sys_exit(1, error='OSError', send_log=True)
     else:
       inform('Removed successfully.')
   elif answer in ['n', 'no']:
     path = raw_input('Enter new dir to output: ')
-    log(msg='Enter new dir to output: ' + path + '.')
+    log(msg='Enter new dir to output: \'' + path + '\'.')
   else:
     inform('Error: incorrect answer was typed.')
     sys_exit(1)
@@ -447,8 +453,8 @@ def main():
 
   todir, cleandir = check_arguments(sys.argv[1:])
     
-  inform('Dir to output: ' + todir + '.')
-  inform('Dir to clean: ' + cleandir + '.')
+  inform('Dir to output: \'' + todir + '\'.')
+  inform('Dir to clean: \'' + cleandir + '\'.')
 
   todir, cleandir_files_number = check_input(todir, cleandir)
   exts_types = extensions_types()
@@ -461,7 +467,7 @@ def main():
   try:
     plungedir(cleandir, todir, cleandir_files_number, ext_to_filetype, {}, unknown_exts)
   except (OSError, IOError) as exception:
-    inform('Error when cleaning directory: ' + cleandir + '. \n' + traceback.format_exc())
+    inform('Error when cleaning directory: \'' + cleandir + '\'. \n' + traceback.format_exc())
     sys_exit(1, error=type(exception).__name__, send_log=True)
 
   inform('Processed files: ' + str(total_files_number) + '.')
