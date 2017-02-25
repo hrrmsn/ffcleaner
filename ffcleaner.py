@@ -101,6 +101,9 @@ ENCODING_SCHEME = 'base64'
 DECODED_SENDER_EMAIL = ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME)
 DECODED_SUPPORT_EMAIL = ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME)
 
+SYSPRINT_NUMBER_OF_SPACES = 100
+SYSPRINT_MAX_LENGTH_OF_FILENAME = 25
+
 
 def extensions_types():
   exts_types = []
@@ -142,7 +145,8 @@ def filetype(filepath, ext_to_filetype, unknown_exts):
   ext = os.path.splitext(filepath)[1].lower()
   if ext in ext_to_filetype:
     return ext_to_filetype[ext]
-  unknown_exts.add(ext)
+  if ext != '':
+    unknown_exts.add(ext)
   return 'unknown'
 
 
@@ -161,7 +165,13 @@ def full_destination(not_fulldest, filepath, filenames_storage):
   return fulldest
 
 
-def cleanfile(filepath, todir, ftype, filenames_storage):
+def sysprint(text=''):
+  sys.stdout.write(' ' * SYSPRINT_NUMBER_OF_SPACES + '\r')
+  sys.stdout.write(text)
+  sys.stdout.flush()
+  
+
+def cleanfile(filepath, todir, ftype, filenames_storage, progress):
   destination = os.path.join(todir, ftype)
   ext = os.path.splitext(filepath)[1].lower()
   ext = ext.strip('.')
@@ -178,6 +188,10 @@ def cleanfile(filepath, todir, ftype, filenames_storage):
     sys_exit(1, error='OSError', send_log=True)
 
   fulldest = full_destination(destination, filepath, filenames_storage)
+  
+  complete_template = '{:d}% complete (copying \'{:.' + str(SYSPRINT_MAX_LENGTH_OF_FILENAME) + '}\'...)\r'
+  sysprint(complete_template.format(progress, os.path.basename(filepath)))
+  
   shutil.copy2(filepath, fulldest)
 
 
@@ -204,12 +218,12 @@ def plungedir(path, todir, cleandir_files_number, ext_to_filetype, filenames_sto
       new_progress = int('{:.0f}'.format(total_files_number * 100.0 / cleandir_files_number))
       if progress != new_progress:
         progress = new_progress
-        inform(str(progress) + '% complete')
+        log(msg=str(progress) + '% complete')
 
       ftype = filetype(fullpath, ext_to_filetype, unknown_exts)
       if ftype == 'unknown':
         unknown_files_number += 1
-      cleanfile(fullpath, todir, ftype, filenames_storage)
+      cleanfile(fullpath, todir, ftype, filenames_storage, progress)
 
 
 def split_seconds(seconds):
@@ -251,16 +265,18 @@ def log(act='log', msg=''):
   elif act == 'end':
     msg = timestamp + ' End logging.\n'
 
+  fopen = None
   try:
-    f = open(LOGFILE, 'a')
-    f.write(msg + '\n')
+    fopen = open(LOGFILE, 'a')
+    fopen.write(msg + '\n')
   except IOError:
     print 'Error when writing to log file. \nSending email with error...'
     errmsg = 'Error when writing to log file. Full stack trace is below. \n' + traceback.format_exc()
     sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, 'IOError (writing to log)', errmsg, [])
     sys.exit(1)
   finally:
-    f.close()
+    if fopen:
+      fopen.close()
 
 
 def remove_file(filepath, file_title):
@@ -272,7 +288,7 @@ def remove_file(filepath, file_title):
     errmsg = 'Error when removing \'' + file_title + '\'. Full stack trace is below. \n' + traceback.format_exc()
     sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, 'OSError (removing file)', errmsg, [])
   else:
-    print 'Removed successfully.'
+    print 'Ok.'
 
 
 def sys_exit(code, error='', send_log=False):
@@ -281,11 +297,12 @@ def sys_exit(code, error='', send_log=False):
     log(act='end')
 
     archive_path = archive_file(LOGFILE)
-    print 'Archive was created successfully. \nSending archive via email...'
-    sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, error, 'Details are inside the log file.', [archive_path])
-
-    remove_file(LOGFILE, 'log file')
-    #remove_file(archive_path, 'archive with log')
+    print 'Ok. \nSending archive via email...'
+    
+    errmsg = 'Details are inside the log file.'
+    if sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, error, errmsg, [archive_path]):
+      remove_file(LOGFILE, 'log file')
+      remove_file(archive_path, 'archive with log')
   else:
     log(act='end')
   sys.exit(code)
@@ -340,10 +357,11 @@ def overwrite(path):
     try:
       shutil.rmtree(path, onerror=remove_readonly)
     except OSError:
-      inform('Error when removing directory: \'' + path + '\'. \n' + traceback.format_exc())
+      inform('Error when removing directory: \'' + path + '\'.')
+      log(msg=traceback.format_exc())
       sys_exit(1, error='OSError', send_log=True)
     else:
-      inform('Removed successfully.')
+      inform('Ok.')
   elif answer in ['n', 'no']:
     path = raw_input('Enter new dir to output: ')
     log(msg='Enter new dir to output: \'' + path + '\'.')
@@ -385,6 +403,7 @@ def archive_file(filepath):
   basedir = os.path.dirname(filepath)
   archive_fullname = os.path.join(basedir, archive_name)
 
+  zfile = None
   try:
     zfile = zipfile.ZipFile(archive_fullname, mode='w')
     zfile.write(filepath, compress_type=zipfile.ZIP_DEFLATED)
@@ -395,7 +414,8 @@ def archive_file(filepath):
       errmsg, [])
     sys.exit(1)
   finally:
-    zfile.close()
+    if zfile:
+      zfile.close()
   return archive_fullname
 
 
@@ -420,10 +440,13 @@ def sendpost(mailfrom, mailto, subject, message, attachments):
       response.raise_for_status()
   except requests.ConnectionError:
     print 'Warning: some problems with internet connection. Email wasn\'t sent.'
+    return False
   except requests.code.HTTPError:
     print 'Failed to send email. (Status: ' + str(response.status_code) + ' ' + response.reason + '.)'
+    return False
   else:
-    print 'Email was sent successfully.'
+    print 'Ok.'
+    return True
   finally:
     for attachment in attachments:
       attached_file = attachment[1]
@@ -434,7 +457,7 @@ def sendmail(mailfrom, mailto, subject, message, attached_files):
   attachments = []
   for filepath in attached_files:
     try:
-      fopen = open(filepath)
+      fopen = open(filepath, 'rb')
       attachments.append(('attachment', fopen))
     except IOError:
       print 'Error when preparing attachments for sending via email. \nSending email without attachments...'
@@ -442,7 +465,19 @@ def sendmail(mailfrom, mailto, subject, message, attached_files):
         + traceback.format_exc()
       sendpost(mailfrom, mailto, 'IOError (problems with attachments)', errmsg, [])
       sys.exit(1)
-  sendpost(mailfrom, mailto, subject, message, attachments)
+  return sendpost(mailfrom, mailto, subject, message, attachments)
+  
+  
+def check_unknown_files(unknown_files_number, unknown_exts):
+  if unknown_files_number == 0:
+    inform('Unknown files are not found.')
+  else:
+    inform('Unknown files: ' + '{:.2f}%'.format(unknown_files_number / float(total_files_number) * 100) + '.')
+    
+  if unknown_exts:
+    log(msg='List of unknown extensions: [\'' + '\', \''.join(unknown_exts) + '\'].')
+  else:
+    log(msg='Unknown extensions are not found.')
 
 
 def main():
@@ -466,14 +501,15 @@ def main():
   unknown_exts = set()
   try:
     plungedir(cleandir, todir, cleandir_files_number, ext_to_filetype, {}, unknown_exts)
+    sysprint()
   except (OSError, IOError) as exception:
-    inform('Error when cleaning directory: \'' + cleandir + '\'. \n' + traceback.format_exc())
+    inform('Error when cleaning directory: \'' + cleandir + '\'.')
+    log(msg=traceback.format_exc())
     sys_exit(1, error=type(exception).__name__, send_log=True)
 
   inform('Processed files: ' + str(total_files_number) + '.')
-  inform('Unknown files: ' + '{:.2f}%'.format(unknown_files_number / float(total_files_number) * 100) + '.')
-  log(msg='List of unknown extensions: [\'' + '\', \''.join(unknown_exts) + '\'].')
-
+  
+  check_unknown_files(unknown_files_number, unknown_exts)
   timedelta = '{:.0f}'.format(time.time() - timestart)
     
   inform('Cleaned in ' + split_seconds(timedelta) + '.')
