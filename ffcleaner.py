@@ -188,14 +188,6 @@ def cutstr(mystr):
   return mystr
 
 
-def dirsize(dirpath):
-  total_size = 0
-  for root, dirs, filenames in os.walk(dirpath):
-    for filename in filenames:
-      total_size += os.path.getsize(os.path.join(root, filename))
-  return total_size
-
-
 '''
 TODO: do not use global variables!
 I should pass variables as function parameters whenever it's possible.
@@ -203,7 +195,7 @@ I should pass variables as function parameters whenever it's possible.
 def update_progress(cleandir_size, filepath, processed_files_size):
   global progress
 
-  new_progress = int('{:.0f}'.format(processed_files_size * 100.0 / cleandir_size))
+  new_progress = int('{:.0f}'.format(processed_files_size / float(cleandir_size) * 100))
   if progress != new_progress:
     progress = new_progress
     cutted_basename = cutstr(os.path.basename(filepath))
@@ -297,18 +289,6 @@ def plungedir(path, todir, cleandir_files_number, cleandir_size, ext_to_filetype
       if ftype == 'unknown':
         unknown_files_number += 1
       
-
-def split_seconds(seconds):
-  if seconds == 0:
-    return '0 sec'
-  splitted_seconds = []
-  for time_unit in TIME_UNITS:
-    if seconds >= time_unit[1]:
-      unit_value = seconds / time_unit[1]
-      seconds %= time_unit[1]
-      splitted_seconds.append(str(unit_value) + ' ' + time_unit[0])
-  return ' '.join(splitted_seconds)
-
 
 def logdir():
   appname = 'ffcleaner'
@@ -479,7 +459,7 @@ def overwrite(path):
   answer = answer.lower()
   log(msg='Dir to output already exists. Do you want to overwrite it? (y/n) ' + answer)
   if answer in ['y', 'yes']:
-    inform('Removing: \'' + path + '\'...')
+    inform('Removing \'' + path + '\'...')
     try:
       shutil.rmtree(path, onerror=remove_readonly)
     except OSError:
@@ -500,8 +480,16 @@ def overwrite(path):
 def print_bytes(bytes):
   for byte_unit in BYTE_UNITS:
     if bytes > byte_unit[0]:
-      return '{:.1f}'.format(bytes / (byte_unit[0] * 1.0)) + ' ' + byte_unit[1]
+      return '{:.1f}'.format(bytes / float(byte_unit[0])) + ' ' + byte_unit[1]
   return str(bytes) + ' bytes'
+
+
+def dirsize(dirpath):
+  total_size = 0
+  for root, dirs, filenames in os.walk(dirpath):
+    for filename in filenames:
+      total_size += os.path.getsize(os.path.join(root, filename))
+  return total_size
 
 
 def check_input(todir, cleandir):
@@ -514,8 +502,8 @@ def check_input(todir, cleandir):
     sys_exit(1)
 
   inform('Counting files to clean...')
-  files_number_in_subfolders = [len(filenames) for dirpath, dirnames, filenames in os.walk(cleandir)]  
-  cleandir_files_number = sum(files_number_in_subfolders)
+  files_numbers_in_subfolders = [len(filenames) for dirpath, dirnames, filenames in os.walk(cleandir)]  
+  cleandir_files_number = sum(files_numbers_in_subfolders)
 
   if cleandir_files_number == 0:
     inform('Error: dir to clean is empty or doesn\'t contain any files.')
@@ -549,6 +537,18 @@ def check_unknown_files(unknown_files_number, processed_files_number, unknown_ex
       log(msg='List of unknown extensions: [\'' + '\', \''.join(unknown_exts) + '\'].')
     else:
       log(msg='Unknown extensions are not found.')
+
+
+def print_seconds(seconds):
+  if seconds == 0:
+    return '0 sec'
+  splitted_seconds = []
+  for time_unit in TIME_UNITS:
+    if seconds >= time_unit[1]:
+      unit_value = seconds / time_unit[1]
+      seconds %= time_unit[1]
+      splitted_seconds.append(str(unit_value) + ' ' + time_unit[0])
+  return ' '.join(splitted_seconds)      
   
 
 def main():
@@ -571,10 +571,10 @@ def main():
   exts_types = extensions_types()
   ext_to_filetype = extension_to_filetype(exts_types)
 
-  inform('Started cleaning. (Buffer size is ' + str(copybytes_buffer_size) + ' bytes.)' )
+  inform('Started cleaning. (b_size is ' + print_bytes(copybytes_buffer_size) + ')')
 
-  timestart = time.time()
   unknown_exts = set()
+  timestart = time.time()
   try:
     plungedir(cleandir, todir, cleandir_files_number, cleandir_size, ext_to_filetype, {}, unknown_exts, 
       copybytes_buffer_size)
@@ -590,7 +590,7 @@ def main():
   check_unknown_files(unknown_files_number, processed_files_number, unknown_exts)
   timedelta = int('{:.0f}'.format(time.time() - timestart))
     
-  inform('Cleaned in ' + split_seconds(timedelta) + '.')
+  inform('Cleaned in ' + print_seconds(timedelta) + '.')
   log(act='end')
 
 
