@@ -30,6 +30,7 @@ import os
 import sys
 import time
 import stat
+import ctypes
 import shutil
 import zipfile
 import platform
@@ -104,16 +105,16 @@ DECODED_SUPPORT_EMAIL = ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME)
 SYSPRINT_NUMBER_OF_SPACES = 100
 SYSPRINT_MAX_LENGTH_OF_FILENAME = 30
 
-COPYBYTES_DEFAULT_BUFFER_SIZE = 1000
+COPYBYTES_DEFAULT_BUFFER_SIZE = 1000000
 COPYBYTES_MIN_FILE_SIZE = 1000000
 
-BYTES_IN_TERABYTE = 1000**4
-BYTES_IN_GIGABYTE = 1000**3
-BYTES_IN_MEGABYTE = 1000**2
-BYTES_IN_KILOBYTE = 1000
+BYTES_IN_TERABYTE = {'metric': 1000**4, 'binary': 1024**4}
+BYTES_IN_GIGABYTE = {'metric': 1000**3, 'binary': 1024**3}
+BYTES_IN_MEGABYTE = {'metric': 1000**2, 'binary': 1024**2}
+BYTES_IN_KILOBYTE = {'metric': 1000, 'binary': 1024}
 
 BYTE_UNITS = [(BYTES_IN_TERABYTE, 'TB'), (BYTES_IN_GIGABYTE, 'GB'), (BYTES_IN_MEGABYTE, 'MB'), 
-  (BYTES_IN_KILOBYTE, 'KB')]
+  (BYTES_IN_KILOBYTE, 'kB')]
 
 
 def extensions_types():
@@ -199,7 +200,7 @@ def update_progress(cleandir_size, filepath, processed_files_size):
   if progress != new_progress:
     progress = new_progress
     cutted_basename = cutstr(os.path.basename(filepath))
-    log(msg=str(progress) + '% complete (copying \'' + cutted_basename + '\'')
+    log(msg='{:d}% complete (copying \'{}\')'.format(progress, cutted_basename))
     sysprint('{:d}% complete (copying \'{}\')\r'.format(progress, cutted_basename))
   
 
@@ -478,9 +479,15 @@ def overwrite(path):
 
 
 def print_bytes(bytes):
-  for byte_unit in BYTE_UNITS:
-    if bytes > byte_unit[0]:
-      return '{:.1f}'.format(bytes / float(byte_unit[0])) + ' ' + byte_unit[1]
+  order = 'metric'
+  if system_name() == 'Windows':
+    order = 'binary'
+  for unit_and_symbol in BYTE_UNITS:
+    unit_symbol = unit_and_symbol[1]
+    units_by_order = unit_and_symbol[0]
+    bytes_in_unit = units_by_order[order]
+    if bytes >= bytes_in_unit:
+      return '{:.1f}'.format(bytes / float(bytes_in_unit)) + ' ' + unit_symbol
   return str(bytes) + ' bytes'
 
 
@@ -548,7 +555,16 @@ def print_seconds(seconds):
       unit_value = seconds / time_unit[1]
       seconds %= time_unit[1]
       splitted_seconds.append(str(unit_value) + ' ' + time_unit[0])
-  return ' '.join(splitted_seconds)      
+  return ' '.join(splitted_seconds)
+  
+  
+def get_free_space(path):
+  if system_name() == 'Windows':
+    free_bytes = ctypes.c_ulonglong(0)
+    ctypes.windll.kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(path), None, None, ctypes.pointer(free_bytes))
+    return free_bytes.value
+  st = os.statvfs(path)
+  return st.f_bavail * st.f_frsize
   
 
 def main():
