@@ -35,6 +35,7 @@ import shutil
 import zipfile
 import platform
 import traceback
+import subprocess
 
 from datetime import datetime
 
@@ -103,10 +104,10 @@ DECODED_SENDER_EMAIL = ENCODED_SENDER_EMAIL.decode(ENCODING_SCHEME)
 DECODED_SUPPORT_EMAIL = ENCODED_SUPPORT_EMAIL.decode(ENCODING_SCHEME)
 
 SYSPRINT_NUMBER_OF_SPACES = 100
-SYSPRINT_MAX_LENGTH_OF_FILENAME = 30
+SYSPRINT_MAX_LENGTH_OF_FILENAME = 40
 
-COPYBYTES_DEFAULT_BUFFER_SIZE = 1000000
-COPYBYTES_MIN_FILE_SIZE = 1000000
+COPYBYTES_DEFAULT_BUFFER_SIZE = {'metric': 1000**2, 'binary': 1024**2}
+COPYBYTES_MIN_FILE_SIZE = {'metric': 1000**2, 'binary': 1024**2}
 
 BYTES_IN_TERABYTE = {'metric': 1000**4, 'binary': 1024**4}
 BYTES_IN_GIGABYTE = {'metric': 1000**3, 'binary': 1024**3}
@@ -115,7 +116,9 @@ BYTES_IN_KILOBYTE = {'metric': 1000, 'binary': 1024}
 
 BYTE_UNITS = [(BYTES_IN_TERABYTE, 'TB'), (BYTES_IN_GIGABYTE, 'GB'), (BYTES_IN_MEGABYTE, 'MB'), 
   (BYTES_IN_KILOBYTE, 'kB')]
-
+  
+PLATFORM_DATA_ORDER = {'Windows': 'binary', 'Linux': 'metric', 'Mac OS': 'metric', 'rare OS type': 'metric'}
+  
 
 def extensions_types():
   exts_types = []
@@ -163,7 +166,7 @@ def filetype(filepath, ext_to_filetype, unknown_exts):
 
 
 def full_destination(not_fulldest, filepath, filenames_storage):
-  basename = os.path.basename(filepath)
+  basename = os.path.basename(filepath).lower()
   filename = basename
 
   if not basename in filenames_storage:
@@ -193,11 +196,16 @@ def cutstr(mystr):
 TODO: do not use global variables!
 I should pass variables as function parameters whenever it's possible.
 '''
-def update_progress(cleandir_size, filepath, processed_files_size):
+# Need to refactor!!!
+def update_progress(cleandir_size, filepath, processed_files_size, forced_update=False):
   global progress
 
   new_progress = int('{:.0f}'.format(processed_files_size / float(cleandir_size) * 100))
-  if progress != new_progress:
+  if progress != new_progress or forced_update:
+    progress = new_progress
+    cutted_basename = cutstr(os.path.basename(filepath))
+    sysprint('{:d}% complete (copying \'{}\')\r'.format(progress, cutted_basename))
+  elif forced_update:
     progress = new_progress
     cutted_basename = cutstr(os.path.basename(filepath))
     log(msg='{:d}% complete (copying \'{}\')'.format(progress, cutted_basename))
@@ -229,11 +237,33 @@ def copybytes(copyfrom, copyto, cleandir_size, copybytes_buffer_size):
     inform('Error when copying file: \'' + copyfrom + '\'.')
     log(msg=traceback.format_exc())
     sys_exit(1, error='IOError', send_log=True)
+    
+
+def get_copybytes_min_file_size():
+  platform_order = PLATFORM_DATA_ORDER[system_name()]
+  return COPYBYTES_MIN_FILE_SIZE[platform_order]
+  
+  
+def get_copybytes_default_buffer_size():
+  platform_order = PLATFORM_DATA_ORDER[system_name()]
+  return COPYBYTES_DEFAULT_BUFFER_SIZE[platform_order]
+  
+
+def get_max_path_length():
+  if system_name() == 'Windows':
+    from ctypes.wintypes import MAX_PATH
+    return MAX_PATH
+  elif system_name() == 'Linux':
+    return int(subprocess.check_output(['getconf', 'PATH_MAX', '/']))
+  return sys.maxsize
 
 
 def cleanfile(filepath, todir, ftype, filenames_storage, cleandir_size, copybytes_buffer_size):
   global processed_files_size
 
+  #TEST info
+  log(msg='Cleaning file: \'' + filepath + '\'.')
+  
   destination = os.path.join(todir, ftype)
   ext = os.path.splitext(filepath)[1].lower()
   ext = ext.strip('.')
@@ -253,12 +283,22 @@ def cleanfile(filepath, todir, ftype, filenames_storage, cleandir_size, copybyte
 
   fulldest = full_destination(destination, filepath, filenames_storage)
   
-  if os.path.getsize(filepath) > COPYBYTES_MIN_FILE_SIZE:
+  log(msg='Destination: \'' + fulldest + '\'.')
+  
+  
+  
+  if os.path.getsize(filepath) >= get_copybytes_min_file_size():
+    #Under test
+    log(msg='copybytes function choosed.\n')
+    
     copybytes(filepath, fulldest, cleandir_size, copybytes_buffer_size)
   else:
+    #Under test
+    log(msg='shutil.copy2 function choosed.\n')
+    
     shutil.copy2(filepath, fulldest)
     processed_files_size += os.path.getsize(filepath)
-    update_progress(cleandir_size, filepath, processed_files_size)
+    update_progress(cleandir_size, filepath, processed_files_size, forced_update=True)
   
 
 def inform(info):
@@ -365,12 +405,12 @@ def sys_exit(code, error='', send_log=False):
     log(act='end')
 
     archive_path = archive_file(LOGFILE)
-    print 'Ok. \nSending archive via email...'
+    #print 'Ok. \nSending archive via email...'
     
     errmsg = 'Details are inside the log file.'
-    if sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, error, errmsg, [archive_path]):
-      remove_file(LOGFILE, 'log file')
-      remove_file(archive_path, 'archive with log')
+    #if sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, error, errmsg, [archive_path]):
+      #remove_file(LOGFILE, 'log file')
+     # remove_file(archive_path, 'archive with log')
   else:
     log(act='end')
   sys.exit(code)
@@ -479,13 +519,11 @@ def overwrite(path):
 
 
 def print_bytes(bytes):
-  order = 'metric'
-  if system_name() == 'Windows':
-    order = 'binary'
+  platform_order = PLATFORM_DATA_ORDER[system_name()]
   for unit_and_symbol in BYTE_UNITS:
     unit_symbol = unit_and_symbol[1]
     units_by_order = unit_and_symbol[0]
-    bytes_in_unit = units_by_order[order]
+    bytes_in_unit = units_by_order[platform_order]
     if bytes >= bytes_in_unit:
       return '{:.1f}'.format(bytes / float(bytes_in_unit)) + ' ' + unit_symbol
   return str(bytes) + ' bytes'
@@ -566,6 +604,19 @@ def get_free_space(path):
   st = os.statvfs(path)
   return st.f_bavail * st.f_frsize
   
+ 
+def check_free_drive_space(path, required_bytes):
+  if system_name() == 'Windows':
+    absolute_path = os.path.abspath(path)
+    path = os.path.splitdrive(absolute_path)[0]
+    
+  free_bytes = get_free_space(path)
+  if get_free_space(path) < required_bytes:
+    inform('Error: not enough free disk space.')
+    inform(print_bytes(free_bytes) + ' available, ' + print_bytes(required_bytes) + ' required.')
+    
+    sys_exit(0)
+    
 
 def main():
   log(act='start')
@@ -573,10 +624,10 @@ def main():
   log(msg='Platform info: ' + platform.platform() + '.')
   log(msg='Launch command: ' + ' '.join(sys.argv) + '.')
 
-  copybytes_buffer_size = COPYBYTES_DEFAULT_BUFFER_SIZE
+  copybytes_buffer_size = get_copybytes_default_buffer_size()
   if len(sys.argv) > 4:
     copybytes_buffer_size = int(sys.argv[4])
-    del sys.argv[4]  
+    del sys.argv[4]
 
   todir, cleandir = check_arguments(sys.argv[1:])
     
@@ -584,6 +635,9 @@ def main():
   inform('Dir to clean: \'' + cleandir + '\'.')
 
   todir, cleandir_files_number, cleandir_size = check_input(todir, cleandir)
+  
+  check_free_drive_space(todir, cleandir_size)
+  
   exts_types = extensions_types()
   ext_to_filetype = extension_to_filetype(exts_types)
 
@@ -608,7 +662,7 @@ def main():
     
   inform('Cleaned in ' + print_seconds(timedelta) + '.')
   log(act='end')
-
+  
 
 if __name__ == '__main__':
   main()
