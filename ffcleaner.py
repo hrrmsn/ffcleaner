@@ -42,34 +42,34 @@ from datetime import datetime
 import appdirs
 import requests
 
-IMAGE_EXTS = ['image', '.jpg', '.jpeg', '.jpe', '.jp2', '.bmp', '.bmp2', '.bmp3', '.gif', '.png', '.png8', '.png24', 
-'.png32', '.tiff', '.tif', '.ptif', '.tiff64', '.psd', '.xcf', '.ico', '.icon', '.svg', '.svgz', '.msvgz', '.eps', 
-'.eps2', '.eps3', '.epsf', '.ai', '.nef', '.cr2', '.crw', '.dcr', '.kdc', '.k25', '.x3f', '.arw', '.sr2', '.srf', 
-'.mrw', '.erf', '.raf', '.pct', '.pict', '.dds', '.dng', '.pex', '.3fr', '.ppm', '.orf', '.pef', '.aai', '.exr', 
-'.hdr', '.dcm', '.dicom', '.psb', '.pbm', '.jpf', '.iff', '.sct', '.tga', '.fit', '.fits', '.fts', '.mng', '.pgm', 
+IMAGE_EXTS = ['image', '.jpg', '.jpeg', '.jpe', '.jp2', '.bmp', '.bmp2', '.bmp3', '.gif', '.png', '.png8', '.png24',
+'.png32', '.tiff', '.tif', '.ptif', '.tiff64', '.psd', '.xcf', '.ico', '.icon', '.svg', '.svgz', '.msvgz', '.eps',
+'.eps2', '.eps3', '.epsf', '.ai', '.nef', '.cr2', '.crw', '.dcr', '.kdc', '.k25', '.x3f', '.arw', '.sr2', '.srf',
+'.mrw', '.erf', '.raf', '.pct', '.pict', '.dds', '.dng', '.pex', '.3fr', '.ppm', '.orf', '.pef', '.aai', '.exr',
+'.hdr', '.dcm', '.dicom', '.psb', '.pbm', '.jpf', '.iff', '.sct', '.tga', '.fit', '.fits', '.fts', '.mng', '.pgm',
 '.pnm', '.pam', '.ps', '.ps2', '.ps3', '.sgi', '.xpm', '.xbm', '.bitmap', '.xwd', '.pcx', '.pcc', '.cur']
 
-CODE_EXTS = ['code', '.as', '.actionscript', '.sh', '.cf', '.cfm', '.cs', '.c', '.h', '.cc', '.cp', '.cpp', '.md', 
-'.markdown', '.m', '.css', '.pas', '.diff', '.patch', '.erl', '.groovy', '.js', '.java', '.pl', '.perl', '.php', 
-'.ps1', '.py', '.python', '.rb', '.ruby', '.scala', '.sql', '.vb', '.xhtml', '.xslt', '.htm', '.html', '.rss', '.atom', 
+CODE_EXTS = ['code', '.as', '.actionscript', '.sh', '.cf', '.cfm', '.cs', '.c', '.h', '.cc', '.cp', '.cpp', '.md',
+'.markdown', '.m', '.css', '.pas', '.diff', '.patch', '.erl', '.groovy', '.js', '.java', '.pl', '.perl', '.php',
+'.ps1', '.py', '.python', '.rb', '.ruby', '.scala', '.sql', '.vb', '.xhtml', '.xslt', '.htm', '.html', '.rss', '.atom',
 '.xml']
 
-DOCUMENT_EXTS = ['document', '.pages', '.docx', '.doc', '.rtf', '.odt', '.wpd', '.wps', '.jtd', '.jtt', '.pdf', 
+DOCUMENT_EXTS = ['document', '.pages', '.docx', '.doc', '.rtf', '.odt', '.wpd', '.wps', '.jtd', '.jtt', '.pdf',
 '.epdf', '.tex', '.mml', '.uof', '.uot', '.sdw', '.sxw', '.ps', '.ps2', '.ps3', '.djvu', '.txt', '.text']
 
-EBOOKS_EXTS = ['ebook', '.azw', '.azw4', '.chm', '.cbz', '.djvu', '.epub', '.fb2', '.htmlz', '.lit', '.lrf', '.lrs', 
+EBOOKS_EXTS = ['ebook', '.azw', '.azw4', '.chm', '.cbz', '.djvu', '.epub', '.fb2', '.htmlz', '.lit', '.lrf', '.lrs',
 '.mobi', '.pml', '.recipe', '.snb', '.tcr', '.cbr', '.prc', '.tpz', '.pmlz']
 
-VIDEO_EXTS = ['video', '.mp4', '.mov', '.m4v', '.m2v', '.avi', '.wmv', '.rm', '.mpeg', '.mpg', '.ogv', '.3gp', '.3g2', 
+VIDEO_EXTS = ['video', '.mp4', '.mov', '.m4v', '.m2v', '.avi', '.wmv', '.rm', '.mpeg', '.mpg', '.ogv', '.3gp', '.3g2',
 '.vob', '.flv', '.webm', '.mkv']
 
-AUDIO_EXTS = ['audio', '.mp3', '.mp2', '.wma', '.wav', '.ogg', '.aac', '.flac', '.au', '.aif', '.aiff', '.gsm', '.ra', 
+AUDIO_EXTS = ['audio', '.mp3', '.mp2', '.wma', '.wav', '.ogg', '.aac', '.flac', '.au', '.aif', '.aiff', '.gsm', '.ra',
 '.mid', '.amr', '.m4a']
 
-PRESENTATION_EXTS = ['presentation', '.odp', '.otp', '.pot', '.pps', '.ppsx', '.ppt', '.pptx', '.sdd', '.sti', '.sx', 
+PRESENTATION_EXTS = ['presentation', '.odp', '.otp', '.pot', '.pps', '.ppsx', '.ppt', '.pptx', '.sdd', '.sti', '.sx',
 '.uop', '.sxi']
 
-SYSTEM_EXTS = ['system', '.cab', '.cpl', '.cur', '.deskthemepack', '.dll', '.dmp', '.drv', '.icns', '.ico', '.lnk', 
+SYSTEM_EXTS = ['system', '.cab', '.cpl', '.cur', '.deskthemepack', '.dll', '.dmp', '.drv', '.icns', '.ico', '.lnk',
 '.sys']
 
 COMPRESSED_EXTS = ['compressed', '.7z', '.cbr', '.deb', '.gz', '.pkg', '.rar', '.rpm', '.sitx', '.zip', '.zipx']
@@ -114,11 +114,11 @@ BYTES_IN_GIGABYTE = {'metric': 1000**3, 'binary': 1024**3}
 BYTES_IN_MEGABYTE = {'metric': 1000**2, 'binary': 1024**2}
 BYTES_IN_KILOBYTE = {'metric': 1000, 'binary': 1024}
 
-BYTE_UNITS = [(BYTES_IN_TERABYTE, 'TB'), (BYTES_IN_GIGABYTE, 'GB'), (BYTES_IN_MEGABYTE, 'MB'), 
+BYTE_UNITS = [(BYTES_IN_TERABYTE, 'TB'), (BYTES_IN_GIGABYTE, 'GB'), (BYTES_IN_MEGABYTE, 'MB'),
   (BYTES_IN_KILOBYTE, 'kB')]
-  
+
 PLATFORM_DATA_ORDER = {'Windows': 'binary', 'Linux': 'metric', 'Mac OS': 'metric', 'rare OS type': 'metric'}
-  
+
 
 def extensions_types():
   exts_types = []
@@ -210,7 +210,7 @@ def update_progress(cleandir_size, filepath, processed_files_size, forced_update
     cutted_basename = cutstr(os.path.basename(filepath))
     log(msg='{:d}% complete (copying \'{}\')'.format(progress, cutted_basename))
     sysprint('{:d}% complete (copying \'{}\')\r'.format(progress, cutted_basename))
-  
+
 
 def copybytes(copyfrom, copyto, cleandir_size, copybytes_buffer_size):
   global processed_files_size
@@ -237,17 +237,17 @@ def copybytes(copyfrom, copyto, cleandir_size, copybytes_buffer_size):
     inform('Error when copying file: \'' + copyfrom + '\'.')
     log(msg=traceback.format_exc())
     sys_exit(1, error='IOError', send_log=True)
-    
+
 
 def get_copybytes_min_file_size():
   platform_order = PLATFORM_DATA_ORDER[system_name()]
   return COPYBYTES_MIN_FILE_SIZE[platform_order]
-  
-  
+
+
 def get_copybytes_default_buffer_size():
   platform_order = PLATFORM_DATA_ORDER[system_name()]
   return COPYBYTES_DEFAULT_BUFFER_SIZE[platform_order]
-  
+
 
 def get_max_path_length():
   if system_name() == 'Windows':
@@ -263,7 +263,7 @@ def cleanfile(filepath, todir, ftype, filenames_storage, cleandir_size, copybyte
 
   #TEST info
   log(msg='Cleaning file: \'' + filepath + '\'.')
-  
+
   destination = os.path.join(todir, ftype)
   ext = os.path.splitext(filepath)[1].lower()
   ext = ext.strip('.')
@@ -282,28 +282,28 @@ def cleanfile(filepath, todir, ftype, filenames_storage, cleandir_size, copybyte
     sys_exit(1, error='OSError', send_log=True)
 
   fulldest = full_destination(destination, filepath, filenames_storage)
-  
+
   log(msg='Destination: \'' + fulldest + '\'.')
-  
-  
-  
+
+
+
   if os.path.getsize(filepath) >= get_copybytes_min_file_size():
     #Under test
     log(msg='copybytes function choosed.\n')
-    
+
     copybytes(filepath, fulldest, cleandir_size, copybytes_buffer_size)
   else:
     #Under test
     log(msg='shutil.copy2 function choosed.\n')
-    
+
     shutil.copy2(filepath, fulldest)
     processed_files_size += os.path.getsize(filepath)
     update_progress(cleandir_size, filepath, processed_files_size, forced_update=True)
-  
+
 
 def inform(info):
   print info
-  log(msg=info)  
+  log(msg=info)
 
 
 processed_files_number = 0
@@ -311,7 +311,7 @@ unknown_files_number = 0
 processed_files_size = 0
 progress = 0
 
-def plungedir(path, todir, cleandir_files_number, cleandir_size, ext_to_filetype, filenames_storage, unknown_exts, 
+def plungedir(path, todir, cleandir_files_number, cleandir_size, ext_to_filetype, filenames_storage, unknown_exts,
     copybytes_buffer_size):
   global processed_files_number
   global unknown_files_number
@@ -329,7 +329,7 @@ def plungedir(path, todir, cleandir_files_number, cleandir_size, ext_to_filetype
       processed_files_number += 1
       if ftype == 'unknown':
         unknown_files_number += 1
-      
+
 
 def logdir():
   appname = 'ffcleaner'
@@ -393,10 +393,10 @@ def archive_file(filepath):
   except (RuntimeError, IOError) as exception:
     print 'Error when processing zip file. \nSending email without attachments...'
     errmsg = 'Error when processing zip file. Full stack trace is below. \n' + traceback.format_exc()
-    sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, type(exception).__name__ + ' (processing zip archive)', 
+    sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, type(exception).__name__ + ' (processing zip archive)',
       errmsg, [])
     sys.exit(1)
-  return archive_fullname    
+  return archive_fullname
 
 
 def sys_exit(code, error='', send_log=False):
@@ -406,7 +406,7 @@ def sys_exit(code, error='', send_log=False):
 
     archive_path = archive_file(LOGFILE)
     #print 'Ok. \nSending archive via email...'
-    
+
     errmsg = 'Details are inside the log file.'
     #if sendmail(DECODED_SENDER_EMAIL, DECODED_SUPPORT_EMAIL, error, errmsg, [archive_path]):
       #remove_file(LOGFILE, 'log file')
@@ -419,9 +419,9 @@ def sys_exit(code, error='', send_log=False):
 def sendpost(mailfrom, mailto, subject, message, attachments):
   try:
     response = requests.post(
-      ENCODED_API_BASE_URL.decode(ENCODING_SCHEME), 
-      auth=('api', ENCODED_API_KEY.decode(ENCODING_SCHEME)), 
-      files=attachments, 
+      ENCODED_API_BASE_URL.decode(ENCODING_SCHEME),
+      auth=('api', ENCODED_API_KEY.decode(ENCODING_SCHEME)),
+      files=attachments,
       data={'from': mailfrom, 'to': [mailto], 'subject': subject, 'text': message})
     if response.status_code != requests.codes.ok:
       response.raise_for_status()
@@ -452,7 +452,7 @@ def sendmail(mailfrom, mailto, subject, message, attached_files):
       errmsg += traceback.format_exc()
       sendpost(mailfrom, mailto, 'IOError (problems with attachments)', errmsg, [])
       sys.exit(1)
-  return sendpost(mailfrom, mailto, subject, message, attachments)  
+  return sendpost(mailfrom, mailto, subject, message, attachments)
 
 
 def check_arguments(args):
@@ -485,11 +485,11 @@ def check_arguments(args):
       sys_exit(1)
     inform('Error: must specify only one dir to clean.')
     sys_exit(1)
-  
+
   cleandir = args[0]
   return todir, cleandir
-  
-  
+
+
 def remove_readonly(func, path, exc_info):
   os.chmod(path, stat.S_IWRITE)
   func(path)
@@ -547,7 +547,7 @@ def check_input(todir, cleandir):
     sys_exit(1)
 
   inform('Counting files to clean...')
-  files_numbers_in_subfolders = [len(filenames) for dirpath, dirnames, filenames in os.walk(cleandir)]  
+  files_numbers_in_subfolders = [len(filenames) for dirpath, dirnames, filenames in os.walk(cleandir)]
   cleandir_files_number = sum(files_numbers_in_subfolders)
 
   if cleandir_files_number == 0:
@@ -560,6 +560,9 @@ def check_input(todir, cleandir):
 
   while os.path.exists(todir) and os.listdir(todir) != []:
     todir = overwrite(todir)
+    
+  if os.path.exists(todir) == False:
+    os.makedirs(todir)
   return todir, cleandir_files_number, cleandir_size
 
 
@@ -571,8 +574,8 @@ def system_name():
   elif sys.platform.startswith('darwin'):
     return 'Mac OS'
   return 'rare OS type'
-  
-  
+
+
 def check_unknown_files(unknown_files_number, processed_files_number, unknown_exts):
   if unknown_files_number == 0:
     inform('Unknown files are not found.')
@@ -594,8 +597,8 @@ def print_seconds(seconds):
       seconds %= time_unit[1]
       splitted_seconds.append(str(unit_value) + ' ' + time_unit[0])
   return ' '.join(splitted_seconds)
-  
-  
+
+
 def get_free_space(path):
   if system_name() == 'Windows':
     free_bytes = ctypes.c_ulonglong(0)
@@ -603,20 +606,20 @@ def get_free_space(path):
     return free_bytes.value
   st = os.statvfs(path)
   return st.f_bavail * st.f_frsize
-  
- 
+
+
 def check_free_drive_space(path, required_bytes):
   if system_name() == 'Windows':
     absolute_path = os.path.abspath(path)
     path = os.path.splitdrive(absolute_path)[0]
-    
+
   free_bytes = get_free_space(path)
   if get_free_space(path) < required_bytes:
     inform('Error: not enough free disk space.')
     inform(print_bytes(free_bytes) + ' available, ' + print_bytes(required_bytes) + ' required.')
-    
+
     sys_exit(0)
-    
+
 
 def main():
   log(act='start')
@@ -630,14 +633,14 @@ def main():
     del sys.argv[4]
 
   todir, cleandir = check_arguments(sys.argv[1:])
-    
+
   inform('Dir to output: \'' + todir + '\'.')
   inform('Dir to clean: \'' + cleandir + '\'.')
 
   todir, cleandir_files_number, cleandir_size = check_input(todir, cleandir)
-  
-  check_free_drive_space(todir, cleandir_size)
-  
+
+  check_free_drive_space(cleandir, cleandir_size)
+
   exts_types = extensions_types()
   ext_to_filetype = extension_to_filetype(exts_types)
 
@@ -646,7 +649,7 @@ def main():
   unknown_exts = set()
   timestart = time.time()
   try:
-    plungedir(cleandir, todir, cleandir_files_number, cleandir_size, ext_to_filetype, {}, unknown_exts, 
+    plungedir(cleandir, todir, cleandir_files_number, cleandir_size, ext_to_filetype, {}, unknown_exts,
       copybytes_buffer_size)
     sysprint()
   except (OSError, IOError) as exception:
@@ -656,13 +659,13 @@ def main():
 
   inform('Cleaning was done successfully.')
   inform('Processed files: ' + str(processed_files_number) + '. (' + print_bytes(processed_files_size) + ')')
-  
+
   check_unknown_files(unknown_files_number, processed_files_number, unknown_exts)
   timedelta = int('{:.0f}'.format(time.time() - timestart))
-    
+
   inform('Cleaned in ' + print_seconds(timedelta) + '.')
   log(act='end')
-  
+
 
 if __name__ == '__main__':
   main()
