@@ -1,3 +1,3 @@
 ### basic usage:
-`./ffcleaner [path]`
- where [path] is a dir path to cleanup
+`./ffcleaner [path]` 
+ [path] is a dir path to cleanup
