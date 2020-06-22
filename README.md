@@ -1,4 +1,4 @@
-### How to run ffcleaner?
+### How to run ffcleaner? (on Linux)
 
 
 1. Python 2.7.6 is required.
